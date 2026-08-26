@@ -8,6 +8,7 @@ import {
   TrendingUp, 
   CreditCard,
   CheckCircle,
+  CheckCircle2,
   XCircle,
   MapPin,
   Phone,
@@ -34,6 +35,7 @@ import {
   UserPlus,
   Clock,
   AlertTriangle,
+  AlertCircle,
   Play,
   Trash2,
   ShieldAlert,
@@ -42,8 +44,15 @@ import {
   PauseCircle,
   Ban,
   PlayCircle,
-  Repeat
+  Repeat,
+  QrCode,
+  MessageCircle,
+  ExternalLink,
+  ArrowUpRight,
+  DollarSign,
+  Wallet
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { User, UserRole, AppConfig, MenuItem, WithdrawalRequest, Order, OrderType, OrderStatus } from '../types';
 import { formatCurrency, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -68,7 +77,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
   const [orders, setOrders] = useState<Order[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
-  const [activeTab, setActiveTab] = useState<'performance' | 'chefs' | 'menu' | 'reports' | 'config' | 'withdrawals' | 'orders' | 'users' | 'site' | 'database' | 'retention' | 'chef_dropoff'>('performance');
+  const [activeTab, setActiveTab] = useState<'performance' | 'chefs' | 'menu' | 'reports' | 'config' | 'withdrawals' | 'orders' | 'users' | 'site' | 'retention' | 'chef_dropoff'>('performance');
   const [showAddChef, setShowAddChef] = useState(false);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -83,10 +92,17 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
   const [filterClient, setFilterClient] = useState('');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [userEditData, setUserEditData] = useState<Partial<User>>({});
-  const [dbStatus, setDbStatus] = useState<{ connected: boolean; tables: any; error?: string } | null>(null);
-  const [isTestingDb, setIsTestingDb] = useState(false);
-  const [isSyncingDb, setIsSyncingDb] = useState(false);
-  const [copiedSql, setCopiedSql] = useState(false);
+
+  // Withdrawal management state
+  const [withdrawalFilter, setWithdrawalFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+  const [withdrawalSearch, setWithdrawalSearch] = useState<string>('');
+  const [selectedWithdrawalForQR, setSelectedWithdrawalForQR] = useState<WithdrawalRequest | null>(null);
+  const [payoutModalWithdrawal, setPayoutModalWithdrawal] = useState<WithdrawalRequest | null>(null);
+  const [payoutTxnRef, setPayoutTxnRef] = useState<string>('');
+  const [payoutAdminNotes, setPayoutAdminNotes] = useState<string>('');
+  const [rejectModalWithdrawal, setRejectModalWithdrawal] = useState<WithdrawalRequest | null>(null);
+  const [rejectReason, setRejectReason] = useState<string>('');
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Document, History & Edit Modals State
   const [docModalUser, setDocModalUser] = useState<User | null>(null);
@@ -111,6 +127,12 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
     contactPhone: '',
     upiId: ''
   });
+
+  const copyToClipboard = (text: string, fieldId: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldId);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -140,7 +162,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
       setIsRinging(ringing);
     });
 
-    const unsubscribe = api.subscribeToOrders((allOrders) => {
+    const unsubscribeOrders = api.subscribeToOrders((allOrders) => {
       setOrders(allOrders);
       setSelectedOrder(prev => prev ? allOrders.find(o => o.id === prev.id) || null : null);
       setAssignModalOrder(prev => prev ? allOrders.find(o => o.id === prev.id) || null : null);
@@ -153,8 +175,13 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
       }
     });
 
+    const unsubscribeWithdrawals = api.subscribeToWithdrawals((allWithdrawals) => {
+      setWithdrawals(allWithdrawals);
+    });
+
     return () => {
-      unsubscribe();
+      unsubscribeOrders();
+      unsubscribeWithdrawals();
       unsubscribeSound();
       soundService.stopOrderRingtone();
     };
@@ -649,6 +676,49 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
         );
       })()}
 
+      {/* Pending Chef Withdrawals Attention Banner */}
+      {(() => {
+        const pendingW = withdrawals.filter(w => w.status === 'PENDING');
+        if (pendingW.length === 0) return null;
+        const pendingAmt = pendingW.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white p-5 px-6 rounded-3xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-amber-300/30"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 bg-white text-amber-600 rounded-2xl flex items-center justify-center font-black shadow-md flex-shrink-0">
+                <Wallet size={22} className="animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur-sm rounded-full text-[9px] font-black uppercase tracking-wider text-white">
+                    Payout Request{pendingW.length > 1 ? 's' : ''}
+                  </span>
+                  <span className="text-xs font-black text-amber-100">
+                    {pendingW.length} Chef{pendingW.length > 1 ? 's' : ''} awaiting payout
+                  </span>
+                </div>
+                <h4 className="text-lg font-black mt-0.5">
+                  {formatCurrency(pendingAmt)} in Pending Commission Withdrawals
+                </h4>
+                <p className="text-amber-100 text-xs font-medium">Review chef bank & UPI details, scan QR to disburse, and approve with UTR reference.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setActiveTab('withdrawals');
+                setWithdrawalFilter('PENDING');
+              }}
+              className="px-5 py-2.5 bg-black text-white hover:bg-gray-900 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-md hover:scale-105 transition-all flex-shrink-0 cursor-pointer"
+            >
+              <CreditCard size={15} /> Review & Pay ({pendingW.length})
+            </button>
+          </motion.div>
+        );
+      })()}
+
       {/* Tabs */}
       <div className="flex border-b border-gray-100 overflow-x-auto bg-white/50 backdrop-blur-sm sticky top-0 z-40 px-4 -mx-4">
          {[
@@ -658,7 +728,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
            { id: 'users', label: 'Customers' },
            { id: 'retention', label: 'Reorder Analysis', icon: Repeat },
            { id: 'chef_dropoff', label: 'Chef Churn & 1-Service', icon: AlertTriangle },
-           { id: 'withdrawals', label: 'Withdrawals' },
+           { id: 'withdrawals', label: 'Withdrawals', icon: Wallet },
            { id: 'menu', label: 'Menu' },
            { id: 'config', label: 'Config' },
            { id: 'site', label: 'Site CMS' },
@@ -667,6 +737,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
          ].map((t) => {
            const tab = t.id;
            const unassignedCount = orders.filter(o => o.status === OrderStatus.PENDING && !o.chefId).length;
+           const pendingWCount = withdrawals.filter(w => w.status === 'PENDING').length;
            return (
            <button
              key={tab}
@@ -690,6 +761,11 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
              {tab === 'orders' && unassignedCount > 0 && (
                <span className="px-2 py-0.5 bg-red-600 text-white rounded-full text-[9px] font-black animate-pulse">
                  {unassignedCount} new
+               </span>
+             )}
+             {tab === 'withdrawals' && pendingWCount > 0 && (
+               <span className="px-2 py-0.5 bg-amber-500 text-white rounded-full text-[9px] font-black animate-pulse">
+                 {pendingWCount} pending
                </span>
              )}
              {activeTab === tab && (
@@ -1907,65 +1983,417 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
             </motion.div>
           )}
 
-          {activeTab === 'withdrawals' && (
-             <motion.div 
-               key="withdrawals"
-               initial={{ opacity: 0, x: -10 }}
-               animate={{ opacity: 1, x: 0 }}
-               className="grid gap-4"
-             >
-               {withdrawals.map(w => (
-                 <div key={w.id} className="bg-white p-6 rounded-3xl border border-gray-100 flex items-center justify-between shadow-sm">
-                   <div className="flex items-center gap-4">
-                     <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center">
-                       <CreditCard size={24} />
-                     </div>
-                     <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                           <h3 className="font-bold text-lg">{formatCurrency(w.amount)}</h3>
-                           <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{w.chefName || 'Unknown Chef'}</span>
-                        </div>
-                        {w.bankDetails && (
-                          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
-                             <p className="text-[9px] text-gray-500 font-bold uppercase">Bank: {w.bankDetails.bankName}</p>
-                             <p className="text-[9px] text-gray-500 font-bold uppercase">Acc: {w.bankDetails.accountNumber}</p>
-                             <p className="text-[9px] text-gray-500 font-bold uppercase">IFSC: {w.bankDetails.ifscCode}</p>
-                             <p className="text-[9px] text-red-600 font-black uppercase">UPI: {w.bankDetails.upiId || 'N/A'}</p>
-                          </div>
+          {activeTab === 'withdrawals' && (() => {
+            const pendingW = withdrawals.filter(w => w.status === 'PENDING');
+            const approvedW = withdrawals.filter(w => w.status === 'APPROVED');
+            const rejectedW = withdrawals.filter(w => w.status === 'REJECTED');
+            const totalPendingAmount = pendingW.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+            const totalApprovedAmount = approvedW.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+            const totalLifetimeAmount = withdrawals.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+
+            const filteredWithdrawals = withdrawals.filter(w => {
+              // Status filter
+              if (withdrawalFilter !== 'ALL' && w.status !== withdrawalFilter) return false;
+              // Search query filter
+              if (withdrawalSearch.trim()) {
+                const q = withdrawalSearch.toLowerCase();
+                const matchChef = (w.chefName || '').toLowerCase().includes(q);
+                const matchAmount = w.amount.toString().includes(q);
+                const matchUpi = (w.bankDetails?.upiId || '').toLowerCase().includes(q);
+                const matchBank = (w.bankDetails?.bankName || '').toLowerCase().includes(q);
+                const matchAcc = (w.bankDetails?.accountNumber || '').toLowerCase().includes(q);
+                const matchIfsc = (w.bankDetails?.ifscCode || '').toLowerCase().includes(q);
+                const matchId = (w.id || '').toLowerCase().includes(q);
+                const matchRef = (w.transactionRef || '').toLowerCase().includes(q);
+                return matchChef || matchAmount || matchUpi || matchBank || matchAcc || matchIfsc || matchId || matchRef;
+              }
+              return true;
+            });
+
+            return (
+              <motion.div 
+                key="withdrawals"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="space-y-6"
+              >
+                {/* Header & Quick Sync */}
+                <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 bg-purple-50 text-purple-700 rounded-full text-[10px] font-black uppercase tracking-wider">
+                        Commission Payouts
+                      </span>
+                      <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                      <span className="text-xs font-bold text-gray-500">Live Supabase Sync</span>
+                    </div>
+                    <h2 className="text-2xl font-black text-gray-900 mt-1">Chef Payout & Withdrawal Management</h2>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">
+                      Review chef earnings withdrawal requests, verify bank & UPI credentials, scan dynamic UPI QR to disburse funds, and record UTR references.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={async () => {
+                        const data = await api.getWithdrawals();
+                        setWithdrawals(data);
+                      }}
+                      className="px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer border border-gray-100"
+                    >
+                      <RefreshCw size={14} /> Refresh Requests
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4 Summary Stat Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-gradient-to-br from-amber-50 to-orange-50/50 p-5 rounded-3xl border border-amber-200/70 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Pending Approval</p>
+                      <h4 className="text-2xl font-black text-amber-950 mt-1">{formatCurrency(totalPendingAmount)}</h4>
+                      <p className="text-xs font-bold text-amber-700 mt-0.5">{pendingW.length} Request{pendingW.length === 1 ? '' : 's'}</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-black shadow-md shadow-amber-200">
+                      <Clock size={22} className={pendingW.length > 0 ? "animate-spin" : ""} />
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-5 rounded-3xl border border-green-200/70 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-green-700">Total Disbursed</p>
+                      <h4 className="text-2xl font-black text-green-950 mt-1">{formatCurrency(totalApprovedAmount)}</h4>
+                      <p className="text-xs font-bold text-green-700 mt-0.5">{approvedW.length} Paid & Settled</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-green-600 text-white flex items-center justify-center font-black shadow-md shadow-green-200">
+                      <CheckCircle2 size={22} />
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-red-50 to-rose-50/50 p-5 rounded-3xl border border-red-200/70 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-red-700">Rejected Requests</p>
+                      <h4 className="text-2xl font-black text-red-950 mt-1">{rejectedW.length}</h4>
+                      <p className="text-xs font-bold text-red-600 mt-0.5">Declined by Admin</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-red-500 text-white flex items-center justify-center font-black shadow-md shadow-red-200">
+                      <AlertCircle size={22} />
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-purple-50 to-indigo-50/50 p-5 rounded-3xl border border-purple-200/70 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-purple-700">Lifetime Requested</p>
+                      <h4 className="text-2xl font-black text-purple-950 mt-1">{formatCurrency(totalLifetimeAmount)}</h4>
+                      <p className="text-xs font-bold text-purple-700 mt-0.5">{withdrawals.length} Total Applications</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-black shadow-md shadow-purple-200">
+                      <Wallet size={22} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter and Search Bar */}
+                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+                    {[
+                      { id: 'ALL', label: 'All Requests', count: withdrawals.length },
+                      { id: 'PENDING', label: 'Pending', count: pendingW.length, highlight: pendingW.length > 0 },
+                      { id: 'APPROVED', label: 'Approved / Paid', count: approvedW.length },
+                      { id: 'REJECTED', label: 'Rejected', count: rejectedW.length },
+                    ].map(f => (
+                      <button
+                        key={f.id}
+                        onClick={() => setWithdrawalFilter(f.id as any)}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all whitespace-nowrap cursor-pointer",
+                          withdrawalFilter === f.id
+                            ? "bg-gray-900 text-white shadow-md"
+                            : "bg-gray-50 hover:bg-gray-100 text-gray-600"
                         )}
-                        <p className="text-[9px] text-gray-400 uppercase font-black tracking-widest mt-1">Request Date: {new Date(w.createdAt).toLocaleDateString()}</p>
-                     </div>
-                   </div>
-                   <div className="flex items-center gap-3">
-                     {w.status === 'PENDING' ? (
-                       <>
-                         <button 
-                           onClick={() => approveWithdrawal(w.id)} 
-                           className="px-4 py-2 bg-green-50 hover:bg-green-100 text-green-700 font-black text-xs uppercase tracking-wider rounded-xl flex items-center gap-1.5 transition-all active:scale-95"
-                           title="Approve & Mark Paid"
-                         >
-                           <CheckCircle size={16} /> Approve & Pay
-                         </button>
-                         <button 
-                           onClick={() => rejectWithdrawal(w.id)} 
-                           className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 font-black text-xs uppercase tracking-wider rounded-xl flex items-center gap-1 transition-all active:scale-95"
-                           title="Reject Request"
-                         >
-                           <XCircle size={16} /> Reject
-                         </button>
-                       </>
-                     ) : (
-                       <span className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider ${
-                         w.status === 'APPROVED' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
-                       }`}>
-                         {w.status === 'APPROVED' ? 'PROCESSED / PAID' : 'REJECTED'}
-                       </span>
-                     )}
-                   </div>
-                 </div>
-               ))}
-             </motion.div>
-          )}
+                      >
+                        <span>{f.label}</span>
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded-md text-[10px]",
+                          withdrawalFilter === f.id ? "bg-white/20 text-white" : "bg-gray-200/80 text-gray-700",
+                          f.highlight && withdrawalFilter !== f.id && "bg-amber-100 text-amber-800 font-black animate-pulse"
+                        )}>
+                          {f.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative flex-1 md:max-w-xs">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search chef, UPI, bank, or ID..."
+                      value={withdrawalSearch}
+                      onChange={(e) => setWithdrawalSearch(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                    {withdrawalSearch && (
+                      <button 
+                        onClick={() => setWithdrawalSearch('')} 
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Withdrawals List */}
+                {filteredWithdrawals.length === 0 ? (
+                  <div className="bg-white p-12 text-center rounded-3xl border-2 border-dashed border-gray-100 space-y-3">
+                    <Wallet size={40} className="mx-auto text-gray-300" />
+                    <h3 className="text-base font-bold text-gray-700">No withdrawal requests found</h3>
+                    <p className="text-xs text-gray-400 max-w-md mx-auto">
+                      {withdrawalFilter !== 'ALL' || withdrawalSearch 
+                        ? 'No records match your selected filter or search keyword. Try selecting "All Requests".'
+                        : 'When chefs earn commissions and submit withdrawal requests, they will appear here in real-time.'}
+                    </p>
+                    {(withdrawalFilter !== 'ALL' || withdrawalSearch) && (
+                      <button
+                        onClick={() => {
+                          setWithdrawalFilter('ALL');
+                          setWithdrawalSearch('');
+                        }}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all"
+                      >
+                        Clear Filters
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {filteredWithdrawals.slice().reverse().map(w => {
+                      const chefUser = allUsers.find(u => u.id === w.chefId || u.name === w.chefName);
+                      const chefPhone = chefUser?.phone || chefUser?.whatsapp || '';
+                      const isPending = w.status === 'PENDING';
+                      const isApproved = w.status === 'APPROVED';
+                      const isRejected = w.status === 'REJECTED';
+
+                      return (
+                        <div 
+                          key={w.id} 
+                          className={cn(
+                            "bg-white p-6 rounded-3xl border shadow-sm transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-6",
+                            isPending ? "border-amber-200/90 shadow-amber-500/5 hover:border-amber-300" :
+                            isApproved ? "border-green-100 hover:border-green-200" : "border-gray-100"
+                          )}
+                        >
+                          {/* Left Column: Chef Details & Amount */}
+                          <div className="flex items-start gap-4 flex-1">
+                            <div className={cn(
+                              "w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-base shadow-sm",
+                              isPending ? "bg-amber-50 text-amber-600 border border-amber-200" :
+                              isApproved ? "bg-green-50 text-green-600 border border-green-200" : "bg-red-50 text-red-600 border border-red-200"
+                            )}>
+                              {isPending ? <Clock size={22} className="animate-pulse" /> :
+                               isApproved ? <CheckCircle2 size={22} /> : <AlertCircle size={22} />}
+                            </div>
+
+                            <div className="space-y-2 flex-1">
+                              <div className="flex flex-wrap items-center gap-2.5">
+                                <h3 className="text-xl font-black text-gray-900">{formatCurrency(w.amount)}</h3>
+                                <span className={cn(
+                                  "px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-md",
+                                  isApproved ? "bg-green-100 text-green-800" :
+                                  isRejected ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-900 border border-amber-300 animate-pulse"
+                                )}>
+                                  {isApproved ? 'APPROVED & SETTLED' : isRejected ? 'REJECTED' : 'AWAITING DISBURSAL'}
+                                </span>
+                                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[9px] font-black uppercase">
+                                  {w.payoutMethod === 'BANK' ? '🏦 Bank Transfer' : '📱 UPI Instant'}
+                                </span>
+                              </div>
+
+                              {/* Chef profile info */}
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 font-medium">
+                                <span className="font-bold text-gray-900 flex items-center gap-1.5">
+                                  <ChefHat size={14} className="text-red-500" />
+                                  {w.chefName || chefUser?.name || 'Chef'}
+                                </span>
+                                {chefPhone && (
+                                  <div className="flex items-center gap-2">
+                                    <a 
+                                      href={`tel:${chefPhone}`}
+                                      className="text-blue-600 hover:underline flex items-center gap-1 font-mono font-bold text-[11px]"
+                                    >
+                                      <Phone size={11} /> {chefPhone}
+                                    </a>
+                                    <a
+                                      href={`https://wa.me/${chefPhone.replace(/\D/g, '')}?text=Hi%20${encodeURIComponent(w.chefName || '')},%20regarding%20your%20withdrawal%20request%20of%20₹${w.amount}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-green-600 hover:text-green-700 font-bold text-[11px] flex items-center gap-0.5"
+                                      title="WhatsApp Chef"
+                                    >
+                                      <MessageCircle size={12} /> WhatsApp
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Bank / UPI Breakdown Card */}
+                              {w.bankDetails && (
+                                <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100 text-xs space-y-1.5 max-w-xl">
+                                  {w.payoutMethod === 'BANK' ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-gray-700">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] text-gray-400 font-bold uppercase">Bank:</span>
+                                        <span className="font-bold text-gray-900">{w.bankDetails.bankName || 'Direct Transfer'}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] text-gray-400 font-bold uppercase">A/C Holder:</span>
+                                        <span className="font-bold text-gray-900 truncate max-w-[140px]">{w.bankDetails.accountHolder || w.chefName || 'N/A'}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between group">
+                                        <span className="text-[10px] text-gray-400 font-bold uppercase">Account No:</span>
+                                        <div className="flex items-center gap-1 font-mono font-black text-gray-900">
+                                          <span>{w.bankDetails.accountNumber || 'N/A'}</span>
+                                          {w.bankDetails.accountNumber && (
+                                            <button
+                                              onClick={() => copyToClipboard(w.bankDetails!.accountNumber!, `acc_${w.id}`)}
+                                              className="p-1 text-gray-400 hover:text-gray-900 transition-colors"
+                                              title="Copy Account Number"
+                                            >
+                                              {copiedField === `acc_${w.id}` ? <Check size={12} className="text-green-600" /> : <Copy size={12} />}
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center justify-between group">
+                                        <span className="text-[10px] text-gray-400 font-bold uppercase">IFSC Code:</span>
+                                        <div className="flex items-center gap-1 font-mono font-black text-gray-900">
+                                          <span>{w.bankDetails.ifscCode || 'N/A'}</span>
+                                          {w.bankDetails.ifscCode && (
+                                            <button
+                                              onClick={() => copyToClipboard(w.bankDetails!.ifscCode!, `ifsc_${w.id}`)}
+                                              className="p-1 text-gray-400 hover:text-gray-900 transition-colors"
+                                              title="Copy IFSC Code"
+                                            >
+                                              {copiedField === `ifsc_${w.id}` ? <Check size={12} className="text-green-600" /> : <Copy size={12} />}
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-gray-400 font-bold uppercase">UPI ID:</span>
+                                        <span className="font-mono font-black text-sm text-purple-900">{w.bankDetails.upiId || 'N/A'}</span>
+                                        {w.bankDetails.upiId && (
+                                          <button
+                                            onClick={() => copyToClipboard(w.bankDetails!.upiId!, `upi_${w.id}`)}
+                                            className="p-1 text-gray-400 hover:text-gray-900 transition-colors"
+                                            title="Copy UPI ID"
+                                          >
+                                            {copiedField === `upi_${w.id}` ? <Check size={12} className="text-green-600" /> : <Copy size={12} />}
+                                          </button>
+                                        )}
+                                      </div>
+                                      {w.bankDetails.upiId && (
+                                        <button
+                                          onClick={() => setSelectedWithdrawalForQR(w)}
+                                          className="px-3 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-lg text-[11px] font-black uppercase flex items-center gap-1 transition-all cursor-pointer self-start sm:self-auto"
+                                        >
+                                          <QrCode size={13} /> View UPI QR Code
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Timestamps & Identifiers */}
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                                <span>Requested: {new Date(w.createdAt).toLocaleString()}</span>
+                                <span className="font-mono text-gray-300">ID: {w.id.slice(-8).toUpperCase()}</span>
+                              </div>
+
+                              {/* Approved Info (UTR and Notes) */}
+                              {isApproved && (
+                                <div className="p-3 bg-green-50 rounded-2xl border border-green-100 text-xs text-green-900 space-y-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-[10px] font-bold text-green-700 uppercase tracking-wider">UTR / Bank Ref:</span>
+                                    <span className="font-mono font-black text-green-950 bg-white px-2 py-0.5 rounded border border-green-200">
+                                      {w.transactionRef || 'DIRECT_TRANSFER_PROCESSED'}
+                                    </span>
+                                    {w.approvedAt && (
+                                      <span className="text-[10px] text-green-600">Paid on {new Date(w.approvedAt).toLocaleString()}</span>
+                                    )}
+                                  </div>
+                                  {w.adminNotes && (
+                                    <p className="text-[11px] text-green-800 font-medium">Note: {w.adminNotes}</p>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Rejected Reason */}
+                              {isRejected && (
+                                <div className="p-3 bg-red-50 rounded-2xl border border-red-100 text-xs text-red-900">
+                                  <p className="font-bold text-[10px] uppercase tracking-wider text-red-700">Rejection Reason:</p>
+                                  <p className="text-[11px] text-red-800 mt-0.5">{w.adminNotes || 'Request was declined by administrator'}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Right Column: Actions */}
+                          <div className="flex lg:flex-col items-center lg:items-end justify-end gap-2.5 flex-shrink-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-gray-100">
+                            {isPending ? (
+                              <>
+                                {w.payoutMethod === 'UPI' && w.bankDetails?.upiId && (
+                                  <button
+                                    onClick={() => setSelectedWithdrawalForQR(w)}
+                                    className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs uppercase tracking-wider rounded-xl flex items-center gap-1.5 shadow-md shadow-purple-200 transition-all active:scale-95 cursor-pointer"
+                                  >
+                                    <QrCode size={15} /> Scan & Pay UPI
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    setPayoutModalWithdrawal(w);
+                                    setPayoutTxnRef(`PAY_REF_${Date.now().toString().slice(-6)}`);
+                                    setPayoutAdminNotes("Payout disbursed successfully via Bank / UPI transfer");
+                                  }}
+                                  className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-black text-xs uppercase tracking-wider rounded-xl flex items-center gap-1.5 shadow-md shadow-green-200 transition-all active:scale-95 cursor-pointer"
+                                >
+                                  <CheckCircle size={15} /> Approve & Mark Paid
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setRejectModalWithdrawal(w);
+                                    setRejectReason("");
+                                  }}
+                                  className="px-3.5 py-2.5 bg-gray-100 hover:bg-red-50 hover:text-red-700 text-gray-700 font-bold text-xs uppercase tracking-wider rounded-xl flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                                >
+                                  <XCircle size={15} /> Reject
+                                </button>
+                              </>
+                            ) : (
+                              <div className="text-right">
+                                <span className={cn(
+                                  "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5",
+                                  isApproved ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                                )}>
+                                  {isApproved ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
+                                  {isApproved ? 'COMPLETED' : 'REJECTED'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.div>
+            );
+          })()}
 
           {activeTab === 'site' && (
              <motion.div 
@@ -2708,6 +3136,260 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
           setIsDocModalOpen(true);
         }}
       />
+
+      {/* UPI QR Payment Modal */}
+      {selectedWithdrawalForQR && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-gray-100 text-center space-y-5"
+          >
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 bg-purple-100 text-purple-800 rounded-full text-[9px] font-black uppercase tracking-wider">
+                  Instant UPI Payout
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedWithdrawalForQR(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <XCircle size={20} />
+              </button>
+            </div>
+
+            <div>
+              <h3 className="text-2xl font-black text-gray-900">{formatCurrency(selectedWithdrawalForQR.amount)}</h3>
+              <p className="text-xs text-gray-500 font-bold mt-0.5">Pay to {selectedWithdrawalForQR.chefName || 'Chef'}</p>
+            </div>
+
+            <div className="p-4 bg-purple-50/70 rounded-2xl border border-purple-100 inline-block mx-auto shadow-inner">
+              <QRCodeSVG
+                value={`upi://pay?pa=${selectedWithdrawalForQR.bankDetails?.upiId || ''}&pn=${encodeURIComponent(selectedWithdrawalForQR.chefName || 'Chef')}&am=${selectedWithdrawalForQR.amount}&cu=INR&tn=HC_Chef_Payout`}
+                size={180}
+                level="H"
+                includeMargin={true}
+                className="rounded-lg"
+              />
+            </div>
+
+            <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center justify-between text-xs">
+              <span className="font-mono font-bold text-gray-800 truncate mr-2">{selectedWithdrawalForQR.bankDetails?.upiId}</span>
+              <button
+                onClick={() => copyToClipboard(selectedWithdrawalForQR.bankDetails?.upiId || '', 'qr_modal_upi')}
+                className="px-2.5 py-1 bg-white border border-gray-200 rounded-lg font-bold text-[10px] uppercase text-gray-700 hover:bg-gray-100 flex items-center gap-1 transition-all"
+              >
+                {copiedField === 'qr_modal_upi' ? <Check size={12} className="text-green-600" /> : <Copy size={12} />}
+                {copiedField === 'qr_modal_upi' ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+
+            <p className="text-[11px] text-gray-400">
+              Scan this QR code using Google Pay, PhonePe, Paytm, or any UPI app on your mobile phone to complete payment.
+            </p>
+
+            <div className="flex flex-col gap-2 pt-2">
+              <button
+                onClick={() => {
+                  const target = selectedWithdrawalForQR;
+                  setSelectedWithdrawalForQR(null);
+                  setPayoutModalWithdrawal(target);
+                  setPayoutTxnRef(`UPI_REF_${Date.now().toString().slice(-6)}`);
+                  setPayoutAdminNotes(`Paid ₹${target.amount} via UPI to ${target.bankDetails?.upiId}`);
+                }}
+                className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <CheckCircle size={16} /> I Have Paid • Enter UTR & Approve
+              </button>
+              <button
+                onClick={() => setSelectedWithdrawalForQR(null)}
+                className="w-full py-2.5 text-gray-500 hover:text-gray-800 font-bold text-xs transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Approve Payout Modal */}
+      {payoutModalWithdrawal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 space-y-5"
+          >
+            <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-black text-gray-900">Approve & Disburse Payout</h3>
+                <p className="text-xs text-gray-500">Record transaction reference and mark commission as settled</p>
+              </div>
+              <button
+                onClick={() => setPayoutModalWithdrawal(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <XCircle size={20} />
+              </button>
+            </div>
+
+            {/* Recipient summary */}
+            <div className="p-4 bg-green-50/80 rounded-2xl border border-green-100 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-green-700">Payout Amount</p>
+                <h4 className="text-2xl font-black text-green-950 mt-0.5">{formatCurrency(payoutModalWithdrawal.amount)}</h4>
+                <p className="text-xs font-bold text-green-800 mt-1">To: {payoutModalWithdrawal.chefName || 'Chef'}</p>
+              </div>
+              <div className="text-right text-xs text-green-800">
+                <span className="px-2 py-0.5 bg-green-200/80 rounded text-[9px] font-black uppercase">
+                  {payoutModalWithdrawal.payoutMethod}
+                </span>
+                <p className="font-mono text-[11px] font-bold mt-1 max-w-[140px] truncate">
+                  {payoutModalWithdrawal.payoutMethod === 'BANK'
+                    ? `${payoutModalWithdrawal.bankDetails?.bankName} (${payoutModalWithdrawal.bankDetails?.accountNumber})`
+                    : payoutModalWithdrawal.bankDetails?.upiId}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  UTR / IMPS / UPI Transaction Reference Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. UTR123456789 or BANK_TXN_0987"
+                  value={payoutTxnRef}
+                  onChange={(e) => setPayoutTxnRef(e.target.value)}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Admin Confirmation Note (Visible to Chef)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Payout processed successfully to registered account"
+                  value={payoutAdminNotes}
+                  onChange={(e) => setPayoutAdminNotes(e.target.value)}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setPayoutModalWithdrawal(null)}
+                className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const id = payoutModalWithdrawal.id;
+                    const updated = await api.updateWithdrawal(id, {
+                      status: 'APPROVED',
+                      transactionRef: payoutTxnRef || `REF_${Date.now().toString().slice(-6)}`,
+                      adminNotes: payoutAdminNotes || 'Payout processed successfully',
+                      approvedAt: new Date().toISOString()
+                    });
+                    setWithdrawals(prev => prev.map(w => w.id === id ? updated : w));
+                    setPayoutModalWithdrawal(null);
+                  } catch (err: any) {
+                    alert(`Failed to approve payout: ${err?.message || 'Please verify connection'}`);
+                  }
+                }}
+                className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <CheckCircle size={15} /> Confirm & Mark Paid
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Reject Withdrawal Modal */}
+      {rejectModalWithdrawal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 space-y-5"
+          >
+            <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
+                  <AlertCircle size={18} />
+                </div>
+                <h3 className="text-lg font-black text-gray-900">Reject Withdrawal Request</h3>
+              </div>
+              <button
+                onClick={() => setRejectModalWithdrawal(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <XCircle size={20} />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-600 leading-relaxed">
+              You are declining the withdrawal request of <strong className="text-gray-900">{formatCurrency(rejectModalWithdrawal.amount)}</strong> submitted by <strong className="text-gray-900">{rejectModalWithdrawal.chefName || 'Chef'}</strong>.
+            </p>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">
+                Reason for Rejection <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows={3}
+                placeholder="e.g. Invalid bank account details or IFSC code. Please update banking information in profile."
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setRejectModalWithdrawal(null)}
+                className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const id = rejectModalWithdrawal.id;
+                    const updated = await api.updateWithdrawal(id, {
+                      status: 'REJECTED',
+                      adminNotes: rejectReason || 'Declined by administrator',
+                      approvedAt: new Date().toISOString()
+                    });
+                    setWithdrawals(prev => prev.map(w => w.id === id ? updated : w));
+                    setRejectModalWithdrawal(null);
+                  } catch (err: any) {
+                    alert(`Failed to reject request: ${err?.message || 'Please verify connection'}`);
+                  }
+                }}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <XCircle size={15} /> Confirm Rejection
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

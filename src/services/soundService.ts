@@ -5,12 +5,37 @@ class SoundService {
   private isRingingActive: boolean = false;
   private ringInterval: any = null;
   private isMuted: boolean = false;
+  private isUnlocked: boolean = false;
   private listeners: Set<(ringing: boolean) => void> = new Set();
 
   constructor() {
     if (typeof window !== 'undefined') {
       const storedMute = localStorage.getItem('hc_ringtone_muted');
       this.isMuted = storedMute === 'true';
+
+      // Auto-unlock Web Audio on first user interaction for Mobile / APK / iOS / Safari / Macbook
+      const unlock = () => {
+        this.unlockAudio();
+        window.removeEventListener('click', unlock);
+        window.removeEventListener('touchstart', unlock);
+        window.removeEventListener('keydown', unlock);
+      };
+      window.addEventListener('click', unlock, { passive: true });
+      window.addEventListener('touchstart', unlock, { passive: true });
+      window.addEventListener('keydown', unlock, { passive: true });
+    }
+  }
+
+  public unlockAudio(): boolean {
+    try {
+      const ctx = this.getAudioContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+      this.isUnlocked = true;
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -19,7 +44,7 @@ class SoundService {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       this.audioCtx = new AudioContextClass();
     }
-    if (this.audioCtx.state === 'suspended') {
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
       this.audioCtx.resume().catch(() => {});
     }
     return this.audioCtx;
@@ -64,6 +89,13 @@ class SoundService {
    */
   private playChimeSequence() {
     if (this.isMuted) return;
+
+    // Trigger mobile vibration if supported in Android / APK / mobile browsers
+    try {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate([350, 150, 350, 150, 500]);
+      }
+    } catch {}
 
     try {
       const ctx = this.getAudioContext();
@@ -113,7 +145,7 @@ class SoundService {
         oscHarmonic.stop(now + start + dur + 0.05);
       });
     } catch (err) {
-      console.warn('Audio ring playback error:', err);
+      console.warn('Audio ring playback notice:', err);
     }
   }
 
@@ -164,6 +196,9 @@ class SoundService {
   public playAcceptSound() {
     try {
       const ctx = this.getAudioContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -188,15 +223,13 @@ class SoundService {
    */
   public testRingtone() {
     try {
-      const ctx = this.getAudioContext();
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
+      this.unlockAudio();
       this.playChimeSequence();
     } catch (e) {
-      console.warn('Test audio error:', e);
+      console.warn('Test audio notice:', e);
     }
   }
 }
 
 export const soundService = new SoundService();
+

@@ -104,7 +104,7 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
     loadData();
 
     // Subscribe to reactive real-time order updates across all tabs & events
-    const unsubscribe = api.subscribeToOrders((allOrders) => {
+    const unsubscribeOrders = api.subscribeToOrders((allOrders) => {
       setOrders(allOrders.filter((o: Order) => o.status === OrderStatus.PENDING && !o.chefId));
       setAllChefOrders(allOrders.filter((o: Order) => o.chefId === user.id));
       
@@ -120,8 +120,21 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
       setTotalLifetimeEarnings(earnings);
     });
 
-    return () => unsubscribe();
-  }, [user.id, isOnline]);
+    const unsubscribeWithdrawals = api.subscribeToWithdrawals((allWithdrawals) => {
+      const myW = allWithdrawals.filter((w: any) => w.chefId === user.id);
+      setWithdrawals(myW);
+      const withdrawnSum = myW
+        .filter((w: any) => w.status !== 'REJECTED')
+        .reduce((acc: number, w: any) => acc + w.amount, 0);
+      setTotalWithdrawn(withdrawnSum);
+      setWalletBalance(Math.max(0, totalLifetimeEarnings - withdrawnSum));
+    });
+
+    return () => {
+      unsubscribeOrders();
+      unsubscribeWithdrawals();
+    };
+  }, [user.id, isOnline, totalLifetimeEarnings]);
 
   // Robust timer effect: relies purely on start timestamp so switching tabs, phone calls, or refreshes never reset or pause the timer
   useEffect(() => {
@@ -1073,15 +1086,15 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
                      <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto pr-1">
                         {withdrawals.slice().reverse().map((w: any) => (
                            <div key={w.id} className="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                              <div className="flex items-center gap-3.5">
+                              <div className="flex items-start gap-3.5">
                                  <div className={cn(
-                                   "w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0",
+                                   "w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 mt-0.5",
                                    w.status === 'APPROVED' ? "bg-green-50 text-green-600" :
                                    w.status === 'REJECTED' ? "bg-red-50 text-red-600" : "bg-orange-50 text-orange-600"
                                  )}>
                                     <Receipt size={18} />
                                  </div>
-                                 <div>
+                                 <div className="space-y-1">
                                     <div className="flex items-center gap-2">
                                        <span className="text-base font-black text-gray-900">{formatCurrency(w.amount)}</span>
                                        <span className={cn(
@@ -1089,28 +1102,51 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
                                          w.status === 'APPROVED' ? "bg-green-100 text-green-700" :
                                          w.status === 'REJECTED' ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700"
                                        )}>
-                                         {w.status}
+                                         {w.status === 'APPROVED' ? 'APPROVED & PAID' : w.status}
                                        </span>
                                     </div>
                                     <p className="text-xs text-gray-500 font-medium">
                                        {w.payoutMethod === 'BANK' 
-                                         ? `Bank: ${w.bankDetails?.bankName || 'Direct'} (${w.bankDetails?.accountNumber || ''})`
+                                         ? `Bank: ${w.bankDetails?.bankName || 'Direct'} (${w.bankDetails?.accountNumber || ''}) • IFSC: ${w.bankDetails?.ifscCode || ''}`
                                          : `UPI: ${w.bankDetails?.upiId || 'N/A'}`}
                                     </p>
                                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
-                                       {new Date(w.createdAt).toLocaleString()}
+                                       Requested: {new Date(w.createdAt).toLocaleString()}
                                     </p>
+
+                                    {w.status === 'APPROVED' && w.transactionRef && (
+                                      <div className="mt-1 p-2 bg-green-50 rounded-xl border border-green-100 text-xs text-green-900">
+                                        <p className="font-bold text-[10px] uppercase tracking-wider text-green-700">UTR / Ref: <span className="font-mono font-black">{w.transactionRef}</span></p>
+                                        {w.adminNotes && <p className="text-[11px] text-green-800 mt-0.5">{w.adminNotes}</p>}
+                                      </div>
+                                    )}
+
+                                    {w.status === 'REJECTED' && w.adminNotes && (
+                                      <div className="mt-1 p-2 bg-red-50 rounded-xl border border-red-100 text-xs text-red-900">
+                                        <p className="font-bold text-[10px] uppercase tracking-wider text-red-700">Reason: {w.adminNotes}</p>
+                                      </div>
+                                    )}
                                  </div>
                               </div>
-                              <div className="text-right">
+                              <div className="text-right flex-shrink-0">
                                  {w.status === 'APPROVED' && (
-                                   <span className="text-xs font-bold text-green-600 flex items-center gap-1">
-                                      <CheckCircle2 size={14} /> Payout Completed
-                                   </span>
+                                   <div>
+                                     <span className="text-xs font-bold text-green-600 flex items-center gap-1 sm:justify-end">
+                                        <CheckCircle2 size={14} /> Payout Completed
+                                     </span>
+                                     {w.approvedAt && (
+                                       <p className="text-[10px] text-gray-400 mt-0.5">Paid on {new Date(w.approvedAt).toLocaleDateString()}</p>
+                                     )}
+                                   </div>
                                  )}
                                  {w.status === 'PENDING' && (
-                                   <span className="text-xs font-bold text-orange-600 flex items-center gap-1">
+                                   <span className="text-xs font-bold text-orange-600 flex items-center gap-1 sm:justify-end">
                                       <Clock size={14} /> Under Admin Approval
+                                   </span>
+                                 )}
+                                 {w.status === 'REJECTED' && (
+                                   <span className="text-xs font-bold text-red-600 flex items-center gap-1 sm:justify-end">
+                                      <AlertCircle size={14} /> Request Rejected
                                    </span>
                                  )}
                               </div>

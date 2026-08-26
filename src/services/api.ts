@@ -387,9 +387,33 @@ class ApiService {
       }
 
       if (withdrawalsRes.status === 'fulfilled' && withdrawalsRes.value.data) {
-        this.withdrawalsCache = withdrawalsRes.value.data.map(mapWithdrawalFromDB);
+        const remoteWithdrawals = withdrawalsRes.value.data.map(mapWithdrawalFromDB);
+        const remoteIds = new Set(remoteWithdrawals.map(w => w.id));
+        const localOnly = this.withdrawalsCache.filter(w => !remoteIds.has(w.id));
+        this.withdrawalsCache = [...remoteWithdrawals, ...localOnly];
         saveToStorage(WITHDRAWALS_KEY, this.withdrawalsCache);
+        this.notifyWithdrawalChange();
         syncOccurred = true;
+
+        // Background push any local withdrawals not in remote
+        if (localOnly.length > 0) {
+          for (const lw of localOnly) {
+            supabase.from('withdrawals').upsert({
+              id: lw.id,
+              chef_id: lw.chefId,
+              chef_name: lw.chefName,
+              amount: lw.amount,
+              status: lw.status,
+              payout_method: lw.payoutMethod,
+              bank_details: lw.bankDetails,
+              transaction_ref: lw.transactionRef,
+              admin_notes: lw.adminNotes,
+              approved_at: lw.approvedAt,
+              created_at: lw.createdAt,
+              updated_at: lw.updatedAt
+            }).then();
+          }
+        }
       }
 
       if (typeof window !== 'undefined') {
@@ -423,6 +447,29 @@ class ApiService {
             this.ordersCache = this.ordersCache.filter(o => o.id !== (payload.old as any).id);
             saveToStorage(ORDERS_KEY, this.ordersCache);
             this.notifyOrderChange();
+          }
+        })
+        .subscribe();
+
+      supabase
+        .channel('public:withdrawals_realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newW = mapWithdrawalFromDB(payload.new);
+            if (!this.withdrawalsCache.some(w => w.id === newW.id)) {
+              this.withdrawalsCache.unshift(newW);
+              saveToStorage(WITHDRAWALS_KEY, this.withdrawalsCache);
+              this.notifyWithdrawalChange(newW);
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = mapWithdrawalFromDB(payload.new);
+            this.withdrawalsCache = this.withdrawalsCache.map(w => w.id === updated.id ? updated : w);
+            saveToStorage(WITHDRAWALS_KEY, this.withdrawalsCache);
+            this.notifyWithdrawalChange(updated);
+          } else if (payload.eventType === 'DELETE') {
+            this.withdrawalsCache = this.withdrawalsCache.filter(w => w.id !== (payload.old as any).id);
+            saveToStorage(WITHDRAWALS_KEY, this.withdrawalsCache);
+            this.notifyWithdrawalChange();
           }
         })
         .subscribe();
@@ -812,11 +859,40 @@ class ApiService {
     }
   }
 
+  notifyWithdrawalChange(withdrawal?: WithdrawalRequest) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('hc_withdrawals_updated', { detail: withdrawal }));
+    }
+  }
+
+  subscribeToWithdrawals(callback: (withdrawals: WithdrawalRequest[]) => void): () => void {
+    const handler = () => {
+      this.getWithdrawals().then(callback);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('hc_withdrawals_updated', handler);
+      window.addEventListener('storage', (e) => {
+        if (e.key === WITHDRAWALS_KEY) handler();
+      });
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('hc_withdrawals_updated', handler);
+        window.removeEventListener('storage', handler);
+      }
+    };
+  }
+
   async getWithdrawals(): Promise<WithdrawalRequest[]> {
     try {
       const { data, error } = await supabase.from('withdrawals').select('*').order('created_at', { ascending: false });
       if (data && !error && data.length > 0) {
-        this.withdrawalsCache = data.map(mapWithdrawalFromDB);
+        const remoteWithdrawals = data.map(mapWithdrawalFromDB);
+        const remoteIds = new Set(remoteWithdrawals.map(w => w.id));
+        const localOnly = this.withdrawalsCache.filter(w => !remoteIds.has(w.id));
+        this.withdrawalsCache = [...remoteWithdrawals, ...localOnly];
         saveToStorage(WITHDRAWALS_KEY, this.withdrawalsCache);
       }
     } catch (err) {
@@ -842,6 +918,7 @@ class ApiService {
       this.withdrawalsCache.push(updated);
     }
     saveToStorage(WITHDRAWALS_KEY, this.withdrawalsCache);
+    this.notifyWithdrawalChange(updated);
 
     try {
       await supabase.from('withdrawals').update({
@@ -874,6 +951,7 @@ class ApiService {
     };
     this.withdrawalsCache.unshift(newW);
     saveToStorage(WITHDRAWALS_KEY, this.withdrawalsCache);
+    this.notifyWithdrawalChange(newW);
 
     try {
       await supabase.from('withdrawals').insert({
