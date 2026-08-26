@@ -32,37 +32,28 @@ import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../services/api';
 import PhonePeCheckoutModal from '../components/PhonePeCheckoutModal';
+import { 
+  COMPANY_WHATSAPP_NUMBER, 
+  getCustomerToChefWhatsAppUrl, 
+  getWhatsAppLocationShareUrl,
+  getGoogleMapsQueryUrl,
+  sanitizeWhatsAppPhone 
+} from '../utils/whatsappHelper';
 
-const COMPANY_WHATSAPP_NUMBER = '918543898295';
-
-function getWhatsAppLocationShareUrl({
-  bookingId,
-  customerName,
-  customerPhone,
-  address,
-  locationUrl,
-  companyPhone,
-}: {
-  bookingId?: string;
-  customerName?: string;
-  customerPhone?: string;
-  address?: string;
-  locationUrl?: string;
-  companyPhone?: string;
-}) {
-  const rawPhone = (companyPhone || COMPANY_WHATSAPP_NUMBER).replace(/\D/g, '');
-  const targetPhone = rawPhone.startsWith('91') ? rawPhone : (rawPhone.length === 10 ? `91${rawPhone}` : rawPhone);
-  
-  let msg = `*📍 Location Shared - HC Home Cooking (Lucknow)*\n`;
-  if (bookingId) msg += `*Booking ID:* #${bookingId}\n`;
-  if (customerName) msg += `*Customer Name:* ${customerName}\n`;
-  if (customerPhone) msg += `*Customer Phone:* ${customerPhone}\n`;
-  if (address) msg += `*Delivery Address:* ${address}\n`;
-  if (locationUrl) msg += `*Google Maps Link:* ${locationUrl}\n`;
-  msg += `\nPlease assign and dispatch our chef to this address. Thank you!`;
-
-  return `https://wa.me/${targetPhone}?text=${encodeURIComponent(msg)}`;
-}
+const LUCKNOW_AREAS = [
+  'Gomti Nagar',
+  'Hazratganj',
+  'Alambagh',
+  'Indira Nagar',
+  'Mahanagar',
+  'Ashiyana',
+  'Aliganj',
+  'Vikas Nagar',
+  'Jankipuram',
+  'Charbagh',
+  'Rajajipuram',
+  'Chinhat'
+];
 
 export default function UserPanel({ user, config }: { user: User, config: AppConfig | null }) {
   const [activeTab, setActiveTab] = useState<'book' | 'orders' | 'profile'>('book');
@@ -660,10 +651,33 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
                                      <span>Auto GPS</span>
                                    </button>
                                  </div>
+
+                                 <div className="space-y-1.5">
+                                   <span className="text-[10px] text-gray-300 font-bold uppercase tracking-wider">Quick Area Selector (Lucknow):</span>
+                                   <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                                     {LUCKNOW_AREAS.map(area => (
+                                       <button
+                                         key={area}
+                                         type="button"
+                                         onClick={() => {
+                                           const current = newAddress.address.trim();
+                                           if (!current.includes(area)) {
+                                             const updated = current ? `${current}, ${area}, Lucknow` : `${area}, Lucknow`;
+                                             setNewAddress({ ...newAddress, address: updated });
+                                           }
+                                         }}
+                                         className="text-[10px] bg-white/10 hover:bg-red-600/60 border border-white/15 px-2 py-0.5 rounded-lg text-gray-200 hover:text-white font-bold transition-all"
+                                       >
+                                         + {area}
+                                       </button>
+                                     ))}
+                                   </div>
+                                 </div>
+
                                  <textarea 
-                                   placeholder="Enter full delivery address in Lucknow..."
+                                   placeholder="Enter full delivery address in Lucknow (Flat No, Street, Landmark, Area)..."
                                    rows={2}
-                                   className="w-full p-3 bg-white/10 border border-white/20 rounded-xl text-xs font-bold text-white placeholder-gray-400 outline-none resize-none"
+                                   className="w-full p-3 bg-white/10 border border-white/20 rounded-xl text-xs font-bold text-white placeholder-gray-400 outline-none resize-none leading-relaxed"
                                    value={newAddress.address}
                                    onChange={e => setNewAddress({ ...newAddress, address: e.target.value })}
                                  />
@@ -671,14 +685,14 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
                                    <button 
                                      type="button" 
                                      onClick={handleSaveAddress}
-                                     className="flex-1 h-9 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider"
+                                     className="flex-1 h-9 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
                                    >
                                      Save & Select
                                    </button>
                                    <button 
                                      type="button" 
                                      onClick={() => setIsAddingAddress(false)}
-                                     className="px-3 h-9 bg-white/10 text-gray-300 rounded-xl text-[10px] font-bold"
+                                     className="px-3 h-9 bg-white/10 hover:bg-white/20 text-gray-300 rounded-xl text-[10px] font-bold"
                                    >
                                      Cancel
                                    </button>
@@ -994,6 +1008,9 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
   const [review, setReview] = useState(order.review || '');
   const [isPaying, setIsPaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [editedAddress, setEditedAddress] = useState(order.address || '');
+  const [isUpdatingAddress, setIsUpdatingAddress] = useState(false);
 
   // Live timer tick for active cooking session
   useEffect(() => {
@@ -1036,6 +1053,21 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
     }
   };
 
+  const handleSaveUpdatedAddress = async () => {
+    if (!editedAddress.trim()) return alert('Please enter an address');
+    setIsUpdatingAddress(true);
+    try {
+      await api.updateOrder(order.id, { address: editedAddress.trim() });
+      order.address = editedAddress.trim();
+      setIsEditingAddress(false);
+      alert('Delivery address updated successfully!');
+    } catch (err) {
+      alert('Failed to update address');
+    } finally {
+      setIsUpdatingAddress(false);
+    }
+  };
+
   const submitReview = async () => {
     if (rating === 0) return alert('Please select a star rating');
     try {
@@ -1045,6 +1077,8 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
       alert('Failed to submit review');
     }
   };
+
+  const isChefAccepted = Boolean(order.chefName || order.status === OrderStatus.COOKING);
 
   return (
     <div className="bg-white rounded-3xl md:rounded-[2.5rem] border border-gray-100 shadow-sm p-6 md:p-8 space-y-6">
@@ -1065,6 +1099,49 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
           {order.status}
         </span>
       </div>
+
+      {/* Chef Accepted & Assigned Notification Banner */}
+      {isChefAccepted && (
+        <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center shadow-sm">
+                <ChefHat size={20} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-800">🎉 Booking Accepted by Chef</p>
+                <p className="text-xs font-black text-gray-900">{order.chefName}</p>
+                <p className="text-[10px] text-gray-500 font-medium">{order.chefPhone || 'Professional HC Chef'}</p>
+              </div>
+            </div>
+            {order.chefPhone && (
+              <a 
+                href={`tel:${order.chefPhone}`} 
+                className="p-2.5 bg-white rounded-xl border border-emerald-200 text-emerald-700 hover:bg-emerald-100 shadow-sm"
+                title="Call Chef"
+              >
+                <Phone size={16} />
+              </a>
+            )}
+          </div>
+
+          <div className="pt-2 border-t border-emerald-200/60 flex flex-wrap gap-2">
+            <a
+              href={getCustomerToChefWhatsAppUrl({
+                order,
+                chefPhone: order.chefPhone,
+                companyPhone: config?.contactPhone
+              })}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 min-w-[200px] h-10 bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all"
+            >
+              <MessageCircle size={15} />
+              <span>Share Address to Chef on WhatsApp</span>
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Live Cooking Status / OTP Banner */}
       {order.status === OrderStatus.PENDING && (
@@ -1087,34 +1164,43 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
         </div>
       )}
 
-      {/* Chef Details if Assigned */}
-      {order.chefName && (
-        <div className="p-4 bg-gray-50 rounded-2xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center">
-              <ChefHat size={20} />
-            </div>
-            <div>
-              <p className="text-xs font-black text-gray-900">{order.chefName}</p>
-              <p className="text-[10px] text-gray-400 font-bold">{order.chefPhone || 'Assigned Professional Chef'}</p>
-            </div>
-          </div>
-          {order.chefPhone && (
-            <a href={`tel:${order.chefPhone}`} className="p-2 bg-white rounded-xl border border-gray-200 text-green-600 hover:bg-green-50">
-              <Phone size={16} />
-            </a>
-          )}
-        </div>
-      )}
-
       {/* Address & WhatsApp Location Sharing */}
       <div className="space-y-3 bg-gray-50/70 p-4 rounded-2xl border border-gray-100">
-        <div className="flex items-start gap-2 text-xs font-medium text-gray-700">
-          <MapPin size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
-          <span className="leading-snug">{order.address}</span>
+        <div className="flex justify-between items-start">
+          <div className="flex items-start gap-2 text-xs font-medium text-gray-700 flex-1">
+            <MapPin size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+            <span className="leading-snug">{order.address}</span>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setIsEditingAddress(!isEditingAddress)}
+            className="text-[10px] font-bold text-red-600 hover:text-red-700 underline flex-shrink-0 ml-2"
+          >
+            {isEditingAddress ? 'Cancel' : 'Edit / Add Landmark'}
+          </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 pt-1">
+        {isEditingAddress && (
+          <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2">
+            <textarea
+              rows={2}
+              value={editedAddress}
+              onChange={e => setEditedAddress(e.target.value)}
+              placeholder="Update flat/house, landmark or area..."
+              className="w-full text-xs font-bold text-gray-800 p-2.5 bg-gray-50 rounded-lg border border-gray-200 outline-none resize-none"
+            />
+            <button
+              type="button"
+              disabled={isUpdatingAddress}
+              onClick={handleSaveUpdatedAddress}
+              className="w-full py-2 bg-gray-950 hover:bg-black text-white text-[10px] font-black uppercase rounded-lg"
+            >
+              {isUpdatingAddress ? 'Saving...' : 'Save & Update Location'}
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-200/60">
           <a
             href={getWhatsAppLocationShareUrl({
               bookingId: order.bookingId || order.id.slice(-6).toUpperCase(),
@@ -1126,11 +1212,11 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
             })}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider shadow-sm transition-all"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider shadow-sm transition-all"
             title="Share this booking's location to company WhatsApp"
           >
             <MessageCircle size={13} />
-            <span>Share Location to WhatsApp</span>
+            <span>Share to Company WhatsApp (+91 85438 98295)</span>
           </a>
 
           {order.locationUrl && (
@@ -1138,7 +1224,7 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
               href={order.locationUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 text-[10px] font-bold transition-all"
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 text-[10px] font-bold transition-all"
             >
               <Navigation size={12} className="text-blue-500" />
               <span>View Map</span>

@@ -1,6 +1,6 @@
 -- ==========================================================
 -- HC Home Cooking - Supabase PostgreSQL Database Schema
--- Run this SQL in your Supabase SQL Editor: https://fgchlnjsuabjgweehphr.supabase.co
+-- Run this SQL in your Supabase SQL Editor: https://xuidwdgohquxumadqbye.supabase.co
 -- Resolves all Supabase Database Linter warnings (rls_policy_always_true & security_definer)
 -- ==========================================================
 

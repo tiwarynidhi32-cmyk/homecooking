@@ -13,13 +13,15 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { User, Order, OrderStatus, WithdrawalRequest } from '../types';
+import { User, Order, OrderStatus, WithdrawalRequest, UserRole } from '../types';
 import { formatCurrency, cn } from '../lib/utils';
 import { motion } from 'motion/react';
 import { api } from '../services/api';
+import DailyPerformanceWidget from '../components/DailyPerformanceWidget';
 
 export default function ManagerPanel({ user }: { user: User }) {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [chefs, setChefs] = useState<User[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [stats, setStats] = useState({ total: 0, pending: 0, active: 0, paymentPending: 0 });
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -31,8 +33,14 @@ export default function ManagerPanel({ user }: { user: User }) {
   }, []);
 
   const loadData = async () => {
-    const ordersData = await api.getOrders();
+    const [ordersData, usersData, withdrawalsData] = await Promise.all([
+      api.getOrders(),
+      api.getUsers().catch(() => []),
+      api.getWithdrawals()
+    ]);
+
     setOrders(ordersData);
+    setChefs(usersData.filter((u: User) => u.role === UserRole.CHEF));
     setStats({
       total: ordersData.length,
       pending: ordersData.filter(o => o.status === OrderStatus.PENDING).length,
@@ -40,7 +48,6 @@ export default function ManagerPanel({ user }: { user: User }) {
       paymentPending: ordersData.filter(o => o.status === OrderStatus.PAYMENT_PENDING).length
     });
     
-    const withdrawalsData = await api.getWithdrawals();
     setWithdrawals(withdrawalsData);
   };
 
@@ -88,6 +95,14 @@ export default function ManagerPanel({ user }: { user: User }) {
         <StatsCard label="Payment Due" value={stats.paymentPending.toString()} icon={<DollarSign className="text-orange-500" />} />
         <StatsCard label="Pending Acceptance" value={stats.pending.toString()} icon={<Users className="text-green-500" />} />
       </div>
+
+      {/* Daily Performance Recharts Dashboard */}
+      <DailyPerformanceWidget 
+        orders={orders} 
+        chefs={chefs} 
+        title="Operations Daily Performance" 
+        subtitle="Live daily analytics for Bookings, Active On-Duty Chefs, and Revenue"
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Live Active Cooking Sessions */}

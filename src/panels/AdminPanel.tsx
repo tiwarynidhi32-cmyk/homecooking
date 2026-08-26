@@ -57,6 +57,7 @@ import CustomerRetentionAnalysis from '../components/CustomerRetentionAnalysis';
 import ChefInactivityAnalysis from '../components/ChefInactivityAnalysis';
 import ChefHistoryModal from '../components/ChefHistoryModal';
 import AnalyticsReportsView from '../components/AnalyticsReportsView';
+import DailyPerformanceWidget from '../components/DailyPerformanceWidget';
 import { generateExecutiveReportPDF, generateInvoicePDF } from '../utils/pdfGenerator';
 
 export default function AdminPanel({ user, config: initialConfig, onUpdateConfig }: { user: User, config: AppConfig | null, onUpdateConfig?: () => void }) {
@@ -65,7 +66,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
   const [orders, setOrders] = useState<Order[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
-  const [activeTab, setActiveTab] = useState<'chefs' | 'menu' | 'reports' | 'config' | 'withdrawals' | 'orders' | 'users' | 'site' | 'database' | 'retention' | 'chef_dropoff'>('chefs');
+  const [activeTab, setActiveTab] = useState<'performance' | 'chefs' | 'menu' | 'reports' | 'config' | 'withdrawals' | 'orders' | 'users' | 'site' | 'database' | 'retention' | 'chef_dropoff'>('performance');
   const [showAddChef, setShowAddChef] = useState(false);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -563,6 +564,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
       {/* Tabs */}
       <div className="flex border-b border-gray-100 overflow-x-auto bg-white/50 backdrop-blur-sm sticky top-0 z-40 px-4 -mx-4">
          {[
+           { id: 'performance', label: 'Daily Performance', icon: BarChart3 },
            { id: 'chefs', label: 'Chefs Registry' },
            { id: 'orders', label: 'Live Orders' },
            { id: 'users', label: 'Customers' },
@@ -612,6 +614,23 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
 
       <div className="mt-6">
         <AnimatePresence mode="wait">
+          {activeTab === 'performance' && (
+            <motion.div 
+              key="performance"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+              className="space-y-6"
+            >
+              <DailyPerformanceWidget 
+                orders={orders} 
+                chefs={chefs} 
+                title="Executive Daily Performance Matrix"
+                subtitle="Aggregated time-series of Bookings volume, Active Chefs on duty, and Gross Revenue"
+              />
+            </motion.div>
+          )}
+
           {activeTab === 'chefs' && (
             <motion.div 
               key="chefs"
@@ -2469,7 +2488,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                   <div>
                     <h3 className="text-xl font-black text-gray-900">Supabase Cloud Database & RLS</h3>
                     <p className="text-xs text-gray-500 font-bold mt-1">
-                      Project: <span className="font-mono text-gray-800">fgchlnjsuabjgweehphr.supabase.co</span> • Realtime & Row Level Security Enabled
+                      Project: <span className="font-mono text-gray-800">xuidwdgohquxumadqbye.supabase.co</span> • Realtime & Row Level Security Enabled
                     </p>
                   </div>
                 </div>
@@ -2638,7 +2657,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                     </p>
                   </div>
                   <a
-                    href="https://supabase.com/dashboard/project/fgchlnjsuabjgweehphr/sql/new"
+                    href="https://supabase.com/dashboard/project/xuidwdgohquxumadqbye/sql/new"
                     target="_blank"
                     rel="noreferrer"
                     className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all"

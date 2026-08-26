@@ -25,13 +25,22 @@ import {
   Receipt,
   ArrowDownRight,
   ArrowUpRight,
-  QrCode
+  QrCode,
+  Copy,
+  Share2,
+  ExternalLink
 } from 'lucide-react';
 import { User, Order, OrderStatus, AppConfig, WithdrawalRequest } from '../types';
 import { cn, formatCurrency } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../services/api';
+import { 
+  getChefToCustomerWhatsAppUrl, 
+  getGoogleMapsQueryUrl, 
+  COMPANY_WHATSAPP_NUMBER, 
+  sanitizeWhatsAppPhone 
+} from '../utils/whatsappHelper';
 
 export default function ChefPanel({ user, config }: { user: User, config: AppConfig | null }) {
   const [activeTab, setActiveTab] = useState<'missions' | 'wallet' | 'reports'>('missions');
@@ -39,6 +48,7 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
   const [allChefOrders, setAllChefOrders] = useState<Order[]>([]);
   const [isOnline, setIsOnline] = useState(user.isOnline || false);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
+  const [justAcceptedOrder, setJustAcceptedOrder] = useState<Order | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [otpInput, setOtpInput] = useState('');
   const [showPaymentQR, setShowPaymentQR] = useState(false);
@@ -179,6 +189,7 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
         chefPhone: user.phone || user.whatsapp
       });
       setActiveOrder(updated);
+      setJustAcceptedOrder(updated);
       setOrders(prev => prev.filter(o => o.id !== order.id));
       setActiveTab('missions');
     } catch (err) {
@@ -263,13 +274,11 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
     loadData();
   };
 
-  const openInGoogleMaps = () => {
-    if (activeOrder?.googleLocation && activeOrder.googleLocation.startsWith('http')) {
-      window.open(activeOrder.googleLocation, '_blank');
-    } else {
-      const query = encodeURIComponent(activeOrder?.address || 'Lucknow, Uttar Pradesh');
-      window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
-    }
+  const openInGoogleMaps = (targetOrder?: Order | null) => {
+    const ord = targetOrder || activeOrder;
+    if (!ord) return;
+    const url = getGoogleMapsQueryUrl(ord.address, ord.locationUrl);
+    window.open(url, '_blank');
   };
 
   const callUser = () => {
@@ -281,10 +290,22 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
     }
   };
 
-  const shareAddressOnWhatsApp = (address: string) => {
-    const phone = activeOrder?.userPhone || '';
-    const text = encodeURIComponent(`Hello! I am your HC Home Cooking Chef (${user.name}). I have accepted your booking (#${activeOrder?.bookingId}) and am on my way to: ${address}`);
-    window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${text}`, '_blank');
+  const shareAddressOnWhatsApp = (targetOrder?: Order | null) => {
+    const ord = targetOrder || activeOrder;
+    if (!ord) return;
+    const url = getChefToCustomerWhatsAppUrl({
+      order: ord,
+      chefName: `${user.name} ${user.surname}`.trim(),
+      chefPhone: user.phone || user.whatsapp
+    });
+    window.open(url, '_blank');
+  };
+
+  const copyAddressToClipboard = (addressText: string) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(addressText);
+      alert('Address copied to clipboard!');
+    }
   };
 
   const handleRequestWithdrawal = async (e: React.FormEvent) => {
@@ -373,6 +394,89 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 md:space-y-8 pb-16 px-1 md:px-0">
+      {/* Post-Acceptance WhatsApp & Route Prompt Modal */}
+      <AnimatePresence>
+        {justAcceptedOrder && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.92, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.92, y: 20 }}
+              className="bg-gray-900 text-white rounded-3xl p-6 max-w-md w-full border border-white/10 shadow-2xl space-y-5"
+            >
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-950/70 border border-emerald-500/30 px-2.5 py-1 rounded-full">
+                    ✓ Booking Accepted
+                  </span>
+                  <h3 className="text-xl font-black text-white mt-1">Share Route & Arrival</h3>
+                  <p className="text-xs text-gray-300">Share your arrival route with the customer on WhatsApp so they can prepare for your arrival.</p>
+                </div>
+                <button 
+                  onClick={() => setJustAcceptedOrder(null)}
+                  className="text-gray-400 hover:text-white text-xs font-bold px-2.5 py-1 bg-white/10 rounded-lg"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Customer Delivery Address</p>
+                <p className="text-xs font-bold text-gray-200 leading-relaxed">{justAcceptedOrder.address || 'Lucknow, UP'}</p>
+                <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                  <span className="text-xs text-gray-300 font-medium">Customer: <strong className="text-white">{justAcceptedOrder.userName || 'Client'}</strong></span>
+                  <span className="text-xs text-amber-400 font-mono font-bold">{justAcceptedOrder.userPhone || ''}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  onClick={() => {
+                    shareAddressOnWhatsApp(justAcceptedOrder);
+                    setJustAcceptedOrder(null);
+                  }}
+                  className="w-full h-12 bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-green-500/20 active:scale-95"
+                >
+                  <MessageCircle size={18} />
+                  <span>Send Route on WhatsApp to Customer</span>
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      openInGoogleMaps(justAcceptedOrder);
+                    }}
+                    className="h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center justify-center gap-1.5 font-bold text-xs shadow-md transition-all active:scale-95"
+                  >
+                    <Navigation size={14} /> Open Maps
+                  </button>
+                  <button
+                    onClick={() => {
+                      copyAddressToClipboard(justAcceptedOrder.address || '');
+                    }}
+                    className="h-11 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center justify-center gap-1.5 font-bold text-xs transition-all active:scale-95"
+                  >
+                    <Copy size={14} /> Copy Address
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setJustAcceptedOrder(null)}
+                  className="w-full py-2 text-center text-xs font-bold text-gray-400 hover:text-white transition-colors"
+                >
+                  Continue to Mission Dashboard →
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Top Header & Navigation Tabs */}
       <div className="bg-white p-4 md:p-6 rounded-3xl md:rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
@@ -524,19 +628,30 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
                      </div>
 
                      {/* Google Maps & WhatsApp Navigation Buttons */}
-                     <div className="grid grid-cols-2 gap-3 pt-1">
+                     <div className="space-y-2 pt-1">
                         <button 
-                          onClick={openInGoogleMaps}
-                          className="h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                          onClick={() => shareAddressOnWhatsApp(activeOrder)}
+                          className="w-full h-12 bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all shadow-lg shadow-green-500/20 active:scale-95 uppercase tracking-wider"
                         >
-                          <Navigation size={16} /> Open Google Maps
+                          <MessageCircle size={17} /> WhatsApp Route & Address to Customer
                         </button>
-                        <button 
-                          onClick={() => shareAddressOnWhatsApp(activeOrder.address || '')}
-                          className="h-12 bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all shadow-lg shadow-green-500/20 active:scale-95"
-                        >
-                          <MessageCircle size={16} /> WhatsApp
-                        </button>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <button 
+                            onClick={() => openInGoogleMaps(activeOrder)}
+                            className="h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                          >
+                            <Navigation size={15} /> Google Maps
+                          </button>
+                          <a
+                            href={`https://wa.me/${COMPANY_WHATSAPP_NUMBER}?text=${encodeURIComponent(`*Chef Dispatch Update - HC Home Cooking*\nChef: ${user.name} ${user.surname}\nBooking ID: #${activeOrder.bookingId || activeOrder.id}\nCustomer: ${activeOrder.userName}\nAddress: ${activeOrder.address}\nStatus: Accepted and en route.`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="h-11 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center justify-center gap-1.5 font-bold text-xs transition-all"
+                          >
+                            <Share2 size={14} className="text-gray-300" /> WhatsApp Support
+                          </a>
+                        </div>
                      </div>
 
                      {/* Selected Menu Items */}
