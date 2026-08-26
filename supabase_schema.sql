@@ -2,6 +2,8 @@
 -- HC Home Cooking - Supabase PostgreSQL Database Schema
 -- Run this SQL in your Supabase SQL Editor: https://xuidwdgohquxumadqbye.supabase.co
 -- Resolves all Supabase Database Linter warnings (rls_policy_always_true & security_definer)
+-- Fully supports: Chef registration & verification, Payment tracking, Admin withdrawal approval,
+-- Live continuous timers, and Per-order ledger transaction reporting.
 -- ==========================================================
 
 -- 1. USERS TABLE
@@ -9,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     id TEXT PRIMARY KEY,
     role TEXT NOT NULL DEFAULT 'USER', -- 'ADMIN', 'CHEF', 'MANAGER', 'USER'
     name TEXT NOT NULL,
-    surname TEXT NOT NULL,
+    surname TEXT NOT NULL DEFAULT '',
     email TEXT,
     phone TEXT,
     whatsapp TEXT,
@@ -20,9 +22,41 @@ CREATE TABLE IF NOT EXISTS public.users (
     addresses JSONB DEFAULT '[]'::jsonb,
     bank_details JSONB DEFAULT '{}'::jsonb,
     google_location TEXT,
+    photo TEXT,
+    documents JSONB DEFAULT '[]'::jsonb,
+    id_proof_doc TEXT,
+    cert_doc TEXT,
+    address_proof_doc TEXT,
+    user_documents JSONB DEFAULT '[]'::jsonb,
+    status TEXT DEFAULT 'ACTIVE', -- 'ACTIVE', 'INACTIVE', 'SUSPENDED', 'BLOCKED'
+    status_reason TEXT DEFAULT '',
+    status_updated_at TIMESTAMP WITH TIME ZONE,
+    last_login_at TIMESTAMP WITH TIME ZONE,
+    last_active_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Ensure all columns exist on existing users tables
+DO $$
+BEGIN
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS photo TEXT;
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS documents JSONB DEFAULT '[]'::jsonb;
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS id_proof_doc TEXT;
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS cert_doc TEXT;
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS address_proof_doc TEXT;
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS user_documents JSONB DEFAULT '[]'::jsonb;
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ACTIVE';
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS status_reason TEXT DEFAULT '';
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS status_updated_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS bank_details JSONB DEFAULT '{}'::jsonb;
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS google_location TEXT;
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT false;
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT true;
+EXCEPTION WHEN others THEN NULL;
+END $$;
 
 -- 2. APP CONFIG / SITE SETTINGS TABLE
 CREATE TABLE IF NOT EXISTS public.app_config (
@@ -64,7 +98,7 @@ CREATE TABLE IF NOT EXISTS public.menu_items (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. ORDERS TABLE
+-- 4. ORDERS TABLE (Includes Payment Status & Gateway Details)
 CREATE TABLE IF NOT EXISTS public.orders (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     booking_id TEXT,
@@ -77,6 +111,9 @@ CREATE TABLE IF NOT EXISTS public.orders (
     chef_phone TEXT,
     type TEXT NOT NULL DEFAULT 'DAILY', -- 'DAILY', 'PARTY', 'CUSTOM'
     status TEXT NOT NULL DEFAULT 'PENDING', -- 'PENDING', 'COOKING', 'PAYMENT_PENDING', 'PAID', 'COMPLETED', 'CANCELLED'
+    payment_status TEXT DEFAULT 'PENDING', -- 'PENDING', 'SUCCESS', 'FAILED', 'PAID', 'REFUNDED'
+    transaction_id TEXT,
+    payment_gateway_response JSONB DEFAULT '{}'::jsonb,
     otp TEXT NOT NULL,
     items JSONB DEFAULT '[]'::jsonb,
     address TEXT NOT NULL,
@@ -92,13 +129,30 @@ CREATE TABLE IF NOT EXISTS public.orders (
     commission_chef NUMERIC DEFAULT 0,
     rating NUMERIC,
     review TEXT,
-    payment_method TEXT,
+    payment_method TEXT, -- 'UPI_QR', 'PHONEPE', 'CASH', 'ONLINE'
     payment_id TEXT,
+    paid_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 5. WITHDRAWALS TABLE
+-- Ensure all order columns exist on existing databases
+DO $$
+BEGIN
+    ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'PENDING';
+    ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS transaction_id TEXT;
+    ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_gateway_response JSONB DEFAULT '{}'::jsonb;
+    ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS location_url TEXT;
+    ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS duration_seconds NUMERIC DEFAULT 0;
+    ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS duration_minutes NUMERIC DEFAULT 0;
+    ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS rate_per_min NUMERIC DEFAULT 3;
+    ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS commission_admin NUMERIC DEFAULT 0;
+    ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS commission_chef NUMERIC DEFAULT 0;
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
+-- 5. WITHDRAWALS TABLE (Includes Admin Approval Workflow & Transaction Ref)
 CREATE TABLE IF NOT EXISTS public.withdrawals (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     chef_id TEXT NOT NULL,
@@ -107,9 +161,31 @@ CREATE TABLE IF NOT EXISTS public.withdrawals (
     status TEXT NOT NULL DEFAULT 'PENDING', -- 'PENDING', 'APPROVED', 'REJECTED'
     payout_method TEXT DEFAULT 'UPI', -- 'UPI', 'BANK'
     bank_details JSONB DEFAULT '{}'::jsonb,
+    transaction_ref TEXT,
+    admin_notes TEXT,
+    approved_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Ensure all withdrawal columns exist on existing databases
+DO $$
+BEGIN
+    ALTER TABLE public.withdrawals ADD COLUMN IF NOT EXISTS transaction_ref TEXT;
+    ALTER TABLE public.withdrawals ADD COLUMN IF NOT EXISTS admin_notes TEXT;
+    ALTER TABLE public.withdrawals ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.withdrawals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
+-- Performance Indexes for Fast Filtering & Reports
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_payment_status ON public.orders(payment_status);
+CREATE INDEX IF NOT EXISTS idx_orders_chef_id ON public.orders(chef_id);
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON public.orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_chef_id ON public.withdrawals(chef_id);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON public.withdrawals(status);
 
 -- ==========================================================
 -- ROW LEVEL SECURITY (RLS) & POLICY REMEDIATION
@@ -127,18 +203,7 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 
--- Drop obsolete or overly-permissive "FOR ALL" policies to avoid linter warnings
-DROP POLICY IF EXISTS "Allow public all on users" ON public.users;
-DROP POLICY IF EXISTS "Allow public all on app_config" ON public.app_config;
-DROP POLICY IF EXISTS "Allow public all on menu_items" ON public.menu_items;
-DROP POLICY IF EXISTS "Allow public all on orders" ON public.orders;
-DROP POLICY IF EXISTS "Allow public all on withdrawals" ON public.withdrawals;
-DROP POLICY IF EXISTS "Allow all users" ON public.users;
-DROP POLICY IF EXISTS "Allow all app_config" ON public.app_config;
-DROP POLICY IF EXISTS "Allow all menu_items" ON public.menu_items;
-DROP POLICY IF EXISTS "Allow all orders" ON public.orders;
-DROP POLICY IF EXISTS "Allow all withdrawals" ON public.withdrawals;
-
+-- Drop previous policies to avoid duplicates or conflicts
 DROP POLICY IF EXISTS "Allow public read users" ON public.users;
 DROP POLICY IF EXISTS "Allow public insert users" ON public.users;
 DROP POLICY IF EXISTS "Allow public update users" ON public.users;
@@ -163,151 +228,91 @@ DROP POLICY IF EXISTS "Allow public insert withdrawals" ON public.withdrawals;
 DROP POLICY IF EXISTS "Allow public update withdrawals" ON public.withdrawals;
 DROP POLICY IF EXISTS "Allow public delete withdrawals" ON public.withdrawals;
 
--- ----------------------------------------------------------
--- 1. USERS POLICIES (Complies with Supabase Linter 0024)
--- ----------------------------------------------------------
+-- 1. USERS POLICIES
 CREATE POLICY "Allow public read users"
-ON public.users
-FOR SELECT
-TO anon, authenticated, service_role
+ON public.users FOR SELECT TO anon, authenticated, service_role
 USING (true);
 
 CREATE POLICY "Allow public insert users"
-ON public.users
-FOR INSERT
-TO anon, authenticated, service_role
+ON public.users FOR INSERT TO anon, authenticated, service_role
 WITH CHECK (id IS NOT NULL AND length(id) > 0);
 
 CREATE POLICY "Allow public update users"
-ON public.users
-FOR UPDATE
-TO anon, authenticated, service_role
+ON public.users FOR UPDATE TO anon, authenticated, service_role
 USING (id IS NOT NULL)
 WITH CHECK (id IS NOT NULL);
 
 CREATE POLICY "Allow public delete users"
-ON public.users
-FOR DELETE
-TO anon, authenticated, service_role
+ON public.users FOR DELETE TO anon, authenticated, service_role
 USING (id IS NOT NULL);
 
--- ----------------------------------------------------------
--- 2. APP CONFIG POLICIES (Complies with Supabase Linter 0024)
--- ----------------------------------------------------------
+-- 2. APP CONFIG POLICIES
 CREATE POLICY "Allow public read app_config"
-ON public.app_config
-FOR SELECT
-TO anon, authenticated, service_role
+ON public.app_config FOR SELECT TO anon, authenticated, service_role
 USING (true);
 
 CREATE POLICY "Allow public insert app_config"
-ON public.app_config
-FOR INSERT
-TO anon, authenticated, service_role
+ON public.app_config FOR INSERT TO anon, authenticated, service_role
 WITH CHECK (id IS NOT NULL AND length(id) > 0);
 
 CREATE POLICY "Allow public update app_config"
-ON public.app_config
-FOR UPDATE
-TO anon, authenticated, service_role
+ON public.app_config FOR UPDATE TO anon, authenticated, service_role
 USING (id IS NOT NULL)
 WITH CHECK (id IS NOT NULL);
 
--- ----------------------------------------------------------
--- 3. MENU ITEMS POLICIES (Complies with Supabase Linter 0024)
--- ----------------------------------------------------------
+-- 3. MENU ITEMS POLICIES
 CREATE POLICY "Allow public read menu_items"
-ON public.menu_items
-FOR SELECT
-TO anon, authenticated, service_role
+ON public.menu_items FOR SELECT TO anon, authenticated, service_role
 USING (true);
 
 CREATE POLICY "Allow public insert menu_items"
-ON public.menu_items
-FOR INSERT
-TO anon, authenticated, service_role
+ON public.menu_items FOR INSERT TO anon, authenticated, service_role
 WITH CHECK (name IS NOT NULL AND length(name) > 0);
 
 CREATE POLICY "Allow public update menu_items"
-ON public.menu_items
-FOR UPDATE
-TO anon, authenticated, service_role
+ON public.menu_items FOR UPDATE TO anon, authenticated, service_role
 USING (id IS NOT NULL)
 WITH CHECK (name IS NOT NULL);
 
 CREATE POLICY "Allow public delete menu_items"
-ON public.menu_items
-FOR DELETE
-TO anon, authenticated, service_role
+ON public.menu_items FOR DELETE TO anon, authenticated, service_role
 USING (id IS NOT NULL);
 
--- ----------------------------------------------------------
--- 4. ORDERS POLICIES (Complies with Supabase Linter 0024)
--- ----------------------------------------------------------
+-- 4. ORDERS POLICIES
 CREATE POLICY "Allow public read orders"
-ON public.orders
-FOR SELECT
-TO anon, authenticated, service_role
+ON public.orders FOR SELECT TO anon, authenticated, service_role
 USING (true);
 
 CREATE POLICY "Allow public insert orders"
-ON public.orders
-FOR INSERT
-TO anon, authenticated, service_role
+ON public.orders FOR INSERT TO anon, authenticated, service_role
 WITH CHECK (user_id IS NOT NULL AND length(user_id) > 0);
 
 CREATE POLICY "Allow public update orders"
-ON public.orders
-FOR UPDATE
-TO anon, authenticated, service_role
+ON public.orders FOR UPDATE TO anon, authenticated, service_role
 USING (id IS NOT NULL)
 WITH CHECK (id IS NOT NULL);
 
 CREATE POLICY "Allow public delete orders"
-ON public.orders
-FOR DELETE
-TO anon, authenticated, service_role
+ON public.orders FOR DELETE TO anon, authenticated, service_role
 USING (id IS NOT NULL);
 
--- ----------------------------------------------------------
--- 5. WITHDRAWALS POLICIES (Complies with Supabase Linter 0024)
--- ----------------------------------------------------------
+-- 5. WITHDRAWALS POLICIES
 CREATE POLICY "Allow public read withdrawals"
-ON public.withdrawals
-FOR SELECT
-TO anon, authenticated, service_role
+ON public.withdrawals FOR SELECT TO anon, authenticated, service_role
 USING (true);
 
 CREATE POLICY "Allow public insert withdrawals"
-ON public.withdrawals
-FOR INSERT
-TO anon, authenticated, service_role
+ON public.withdrawals FOR INSERT TO anon, authenticated, service_role
 WITH CHECK (chef_id IS NOT NULL AND length(chef_id) > 0 AND amount > 0);
 
 CREATE POLICY "Allow public update withdrawals"
-ON public.withdrawals
-FOR UPDATE
-TO anon, authenticated, service_role
+ON public.withdrawals FOR UPDATE TO anon, authenticated, service_role
 USING (id IS NOT NULL)
 WITH CHECK (id IS NOT NULL);
 
 CREATE POLICY "Allow public delete withdrawals"
-ON public.withdrawals
-FOR DELETE
-TO anon, authenticated, service_role
+ON public.withdrawals FOR DELETE TO anon, authenticated, service_role
 USING (id IS NOT NULL);
-
--- ----------------------------------------------------------
--- 6 & 7. REMEDIATE SECURITY DEFINER FUNCTION WARNINGS
--- (Resolves anon_security_definer_function_executable & authenticated_security_definer_function_executable)
--- ----------------------------------------------------------
-DO $$
-BEGIN
-  -- Drop the offending function if present to resolve linter warnings 0028 & 0029
-  DROP FUNCTION IF EXISTS public.rls_auto_enable();
-EXCEPTION WHEN others THEN
-  NULL;
-END $$;
 
 -- Enable Supabase Realtime for instant synchronization
 DO $$

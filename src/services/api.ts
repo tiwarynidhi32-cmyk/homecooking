@@ -165,6 +165,9 @@ function mapOrderFromDB(row: any): Order {
     chefPhone: row.chef_phone,
     type: row.type as OrderType,
     status: row.status as OrderStatus,
+    paymentStatus: (row.payment_status as any) || (row.status === OrderStatus.PAID || row.status === OrderStatus.COMPLETED ? 'PAID' : 'PENDING'),
+    transactionId: row.transaction_id || row.payment_id,
+    paymentGatewayResponse: row.payment_gateway_response || {},
     otp: row.otp,
     items: row.items || [],
     address: row.address,
@@ -182,6 +185,7 @@ function mapOrderFromDB(row: any): Order {
     review: row.review,
     paymentMethod: row.payment_method,
     paymentId: row.payment_id,
+    paidAt: row.paid_at,
     createdAt: row.created_at || new Date().toISOString(),
   };
 }
@@ -199,6 +203,9 @@ function mapOrderToDB(order: Partial<Order>): any {
   if (order.chefPhone !== undefined) row.chef_phone = order.chefPhone;
   if (order.type !== undefined) row.type = order.type;
   if (order.status !== undefined) row.status = order.status;
+  if (order.paymentStatus !== undefined) row.payment_status = order.paymentStatus;
+  if (order.transactionId !== undefined) row.transaction_id = order.transactionId;
+  if (order.paymentGatewayResponse !== undefined) row.payment_gateway_response = order.paymentGatewayResponse;
   if (order.otp !== undefined) row.otp = order.otp;
   if (order.items !== undefined) row.items = order.items;
   if (order.address !== undefined) row.address = order.address;
@@ -216,6 +223,7 @@ function mapOrderToDB(order: Partial<Order>): any {
   if (order.review !== undefined) row.review = order.review;
   if (order.paymentMethod !== undefined) row.payment_method = order.paymentMethod;
   if (order.paymentId !== undefined) row.payment_id = order.paymentId;
+  if (order.paidAt !== undefined) row.paid_at = order.paidAt;
   row.updated_at = new Date().toISOString();
   return row;
 }
@@ -282,7 +290,11 @@ function mapWithdrawalFromDB(row: any): WithdrawalRequest {
     status: row.status,
     payoutMethod: row.payout_method || 'UPI',
     bankDetails: row.bank_details || {},
+    transactionRef: row.transaction_ref,
+    adminNotes: row.admin_notes,
+    approvedAt: row.approved_at,
     createdAt: row.created_at || new Date().toISOString(),
+    updatedAt: row.updated_at,
   };
 }
 
@@ -816,11 +828,17 @@ class ApiService {
   async updateWithdrawal(id: string, updates: Partial<WithdrawalRequest>): Promise<WithdrawalRequest> {
     const index = this.withdrawalsCache.findIndex(w => w.id === id);
     let updated: WithdrawalRequest;
+    const now = new Date().toISOString();
     if (index !== -1) {
-      updated = { ...this.withdrawalsCache[index], ...updates };
+      updated = { 
+        ...this.withdrawalsCache[index], 
+        ...updates,
+        updatedAt: now,
+        ...(updates.status === 'APPROVED' ? { approvedAt: updates.approvedAt || now } : {})
+      };
       this.withdrawalsCache[index] = updated;
     } else {
-      updated = { id, ...updates } as WithdrawalRequest;
+      updated = { id, ...updates, updatedAt: now } as WithdrawalRequest;
       this.withdrawalsCache.push(updated);
     }
     saveToStorage(WITHDRAWALS_KEY, this.withdrawalsCache);
@@ -828,7 +846,10 @@ class ApiService {
     try {
       await supabase.from('withdrawals').update({
         status: updated.status,
-        updated_at: new Date().toISOString()
+        transaction_ref: updated.transactionRef,
+        admin_notes: updated.adminNotes,
+        approved_at: updated.approvedAt,
+        updated_at: updated.updatedAt
       }).eq('id', id);
     } catch (err) {
       console.warn('Supabase updateWithdrawal notice:', err);
@@ -846,7 +867,10 @@ class ApiService {
       status: data.status || 'PENDING',
       payoutMethod: data.payoutMethod || 'UPI',
       bankDetails: data.bankDetails || {},
-      createdAt: new Date().toISOString()
+      transactionRef: data.transactionRef,
+      adminNotes: data.adminNotes,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     this.withdrawalsCache.unshift(newW);
     saveToStorage(WITHDRAWALS_KEY, this.withdrawalsCache);
@@ -860,7 +884,10 @@ class ApiService {
         status: newW.status,
         payout_method: newW.payoutMethod,
         bank_details: newW.bankDetails,
-        created_at: newW.createdAt
+        transaction_ref: newW.transactionRef,
+        admin_notes: newW.adminNotes,
+        created_at: newW.createdAt,
+        updated_at: newW.updatedAt
       });
     } catch (err) {
       console.warn('Supabase createWithdrawal notice:', err);
@@ -943,11 +970,16 @@ class ApiService {
 
   async processPayment(amount: number, orderId: string, _redirectUrl?: string, paymentMethod: 'UPI_QR' | 'PHONEPE' | 'CASH' | 'ONLINE' = 'ONLINE', paymentId?: string): Promise<any> {
     const index = this.ordersCache.findIndex(o => o.id === orderId);
+    const txnId = paymentId || `TXN_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+    const paidTimestamp = new Date().toISOString();
+
     if (index !== -1) {
       this.ordersCache[index].status = OrderStatus.PAID;
+      this.ordersCache[index].paymentStatus = 'PAID';
       this.ordersCache[index].paymentMethod = paymentMethod;
-      this.ordersCache[index].paymentId = paymentId || `PAY_${Date.now()}`;
-      this.ordersCache[index].paidAt = new Date().toISOString();
+      this.ordersCache[index].paymentId = txnId;
+      this.ordersCache[index].transactionId = txnId;
+      this.ordersCache[index].paidAt = paidTimestamp;
       if (amount && !this.ordersCache[index].totalAmount) {
         this.ordersCache[index].totalAmount = amount;
       }
@@ -957,10 +989,13 @@ class ApiService {
       try {
         await supabase.from('orders').update({
           status: OrderStatus.PAID,
+          payment_status: 'PAID',
           payment_method: paymentMethod,
-          payment_id: this.ordersCache[index].paymentId,
+          payment_id: txnId,
+          transaction_id: txnId,
+          paid_at: paidTimestamp,
           total_amount: this.ordersCache[index].totalAmount,
-          updated_at: new Date().toISOString()
+          updated_at: paidTimestamp
         }).eq('id', orderId);
       } catch (err) {
         console.warn('Supabase payment update notice:', err);
@@ -968,7 +1003,7 @@ class ApiService {
     }
     return {
       success: true,
-      orderId: paymentId || ("PAY_" + orderId)
+      orderId: txnId
     };
   }
 

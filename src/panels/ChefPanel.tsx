@@ -312,8 +312,8 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
     e.preventDefault();
     const amountToWithdraw = Number(withdrawAmount || walletBalance);
     
-    if (isNaN(amountToWithdraw) || amountToWithdraw < 100) {
-      return alert('Minimum withdrawal amount is ₹100');
+    if (isNaN(amountToWithdraw) || amountToWithdraw <= 0) {
+      return alert('Please enter a valid withdrawal amount (minimum ₹1)');
     }
     if (amountToWithdraw > walletBalance) {
       return alert(`Requested amount ₹${amountToWithdraw} exceeds available wallet balance ₹${walletBalance}`);
@@ -349,11 +349,11 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
         createdAt: new Date().toISOString()
       });
 
-      alert(`₹${amountToWithdraw} Withdrawal Request submitted successfully! It will be reviewed and processed to your ${payoutMethod === 'UPI' ? 'UPI ID' : 'Bank Account'}.`);
+      alert(`₹${amountToWithdraw} Withdrawal Request submitted successfully to Admin! It will be reviewed and processed to your ${payoutMethod === 'UPI' ? 'UPI ID' : 'Bank Account'}.`);
       setWithdrawAmount('');
       loadData();
-    } catch (err) {
-      alert('Withdrawal request failed. Please try again.');
+    } catch (err: any) {
+      alert(`Withdrawal request failed: ${err?.message || 'Please try again'}`);
     } finally {
       setIsWithdrawing(false);
     }

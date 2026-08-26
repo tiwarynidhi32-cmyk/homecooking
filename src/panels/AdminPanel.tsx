@@ -58,6 +58,8 @@ import ChefInactivityAnalysis from '../components/ChefInactivityAnalysis';
 import ChefHistoryModal from '../components/ChefHistoryModal';
 import AnalyticsReportsView from '../components/AnalyticsReportsView';
 import DailyPerformanceWidget from '../components/DailyPerformanceWidget';
+import { AdminLiveTimer } from '../components/AdminLiveTimer';
+import { AdminTransactionReports } from '../components/AdminTransactionReports';
 import { generateExecutiveReportPDF, generateInvoicePDF } from '../utils/pdfGenerator';
 
 export default function AdminPanel({ user, config: initialConfig, onUpdateConfig }: { user: User, config: AppConfig | null, onUpdateConfig?: () => void }) {
@@ -312,23 +314,42 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
   };
 
   const approveWithdrawal = async (id: string) => {
+    const target = withdrawals.find(w => w.id === id);
+    const txnRef = window.prompt(
+      `Approving Payout of ₹${target?.amount || ''} to ${target?.chefName || 'Chef'}.\nEnter Bank / UPI / IMPS Reference / UTR Number (optional):`,
+      `PAY_REF_${Date.now().toString().slice(-6)}`
+    );
+    if (txnRef === null) return; // User cancelled
+
+    const adminNotes = window.prompt("Optional Admin Notes / Payout Confirmation Message:", "Payout processed successfully via bank/UPI transfer");
+
     try {
-      const updated = await api.updateWithdrawal(id, { status: 'APPROVED' });
+      const updated = await api.updateWithdrawal(id, { 
+        status: 'APPROVED',
+        transactionRef: txnRef || undefined,
+        adminNotes: adminNotes || undefined,
+        approvedAt: new Date().toISOString()
+      });
       setWithdrawals(prev => prev.map(w => w.id === id ? updated : w));
-      alert('Withdrawal approved and marked as processed!');
-    } catch (err) {
-      alert('Failed to approve withdrawal');
+      alert(`Withdrawal of ₹${target?.amount || ''} approved and marked as PROCESSED!`);
+    } catch (err: any) {
+      alert(`Failed to approve withdrawal: ${err?.message || 'Please check connection'}`);
     }
   };
 
   const rejectWithdrawal = async (id: string) => {
-    if (!confirm('Are you sure you want to reject this withdrawal request?')) return;
+    const reason = window.prompt('Please enter the reason for rejecting this withdrawal request:');
+    if (reason === null) return; // User cancelled
     try {
-      const updated = await api.updateWithdrawal(id, { status: 'REJECTED' });
+      const updated = await api.updateWithdrawal(id, { 
+        status: 'REJECTED',
+        adminNotes: reason || 'Rejected by administrator',
+        approvedAt: new Date().toISOString()
+      });
       setWithdrawals(prev => prev.map(w => w.id === id ? updated : w));
       alert('Withdrawal request rejected.');
-    } catch (err) {
-      alert('Failed to reject withdrawal');
+    } catch (err: any) {
+      alert(`Failed to reject withdrawal: ${err?.message || 'Please check connection'}`);
     }
   };
 
@@ -561,6 +582,73 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
         );
       })()}
 
+      {/* Active Live Cooking Sessions Real-time Monitor */}
+      {(() => {
+        const liveCookingOrders = orders.filter(o => o.status === OrderStatus.COOKING);
+        if (liveCookingOrders.length === 0) return null;
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-orange-600 via-amber-600 to-red-600 text-white p-6 rounded-[2.5rem] shadow-xl border border-orange-400/30 space-y-4"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-white text-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Clock size={24} className="animate-spin" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-300 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-400"></span>
+                    </span>
+                    <span className="px-2.5 py-0.5 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest text-white">
+                      🔥 Live Ongoing Cooking: {liveCookingOrders.length} Active
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-black mt-0.5">Live Cooking Timers & Ongoing Sessions</h3>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setActiveTab('orders');
+                  setOrderStatusFilter('COOKING');
+                }}
+                className="px-5 py-2.5 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer"
+              >
+                <Eye size={14} /> Filter Cooking ({liveCookingOrders.length})
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+              {liveCookingOrders.map(order => (
+                <div key={order.id} className="bg-black/30 backdrop-blur-md rounded-2xl p-4 border border-white/20 flex flex-col justify-between gap-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="font-mono font-black text-yellow-300 text-sm">#{order.bookingId || order.id.slice(-6).toUpperCase()}</span>
+                      <span className="text-[10px] text-white/80 font-bold block">{order.type} • {order.userName || order.userEmail || 'Customer'}</span>
+                    </div>
+                    <span className="text-[9px] font-black uppercase tracking-widest bg-yellow-400 text-red-950 px-2 py-0.5 rounded-full">
+                      Chef: {order.chefName?.split(' ')[0] || 'Assigned'}
+                    </span>
+                  </div>
+
+                  <AdminLiveTimer order={order} />
+
+                  <button
+                    onClick={() => setSelectedOrder(order)}
+                    className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all text-center cursor-pointer"
+                  >
+                    View Mission Details & Controls
+                  </button>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        );
+      })()}
+
       {/* Tabs */}
       <div className="flex border-b border-gray-100 overflow-x-auto bg-white/50 backdrop-blur-sm sticky top-0 z-40 px-4 -mx-4">
          {[
@@ -574,7 +662,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
            { id: 'menu', label: 'Menu' },
            { id: 'config', label: 'Config' },
            { id: 'site', label: 'Site CMS' },
-           { id: 'reports', label: 'Ledger Reports' },
+           { id: 'reports', label: 'Per-Order Txn Reports', icon: FileText },
            { id: 'database', label: 'Supabase & RLS' },
          ].map((t) => {
            const tab = t.id;
@@ -1115,15 +1203,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                                   )}
                                 </td>
                                 <td className="px-8 py-5 font-bold text-xs text-gray-700">
-                                   {order.status === 'COOKING' ? (
-                                     <span className="text-red-600 font-mono font-black animate-pulse">⏱️ Active Live</span>
-                                   ) : order.durationMinutes ? (
-                                     `${order.durationMinutes} mins`
-                                   ) : order.durationSeconds ? (
-                                     `${Math.ceil(order.durationSeconds / 60)} mins`
-                                   ) : (
-                                     '--'
-                                   )}
+                                   <AdminLiveTimer order={order} compact={true} />
                                 </td>
                                 <td className="px-8 py-5">
                                    <div className="font-black text-sm text-gray-900">{order.totalAmount ? formatCurrency(order.totalAmount) : (order.status === 'COOKING' ? 'Rs. 3/min' : '--')}</div>
@@ -1280,6 +1360,9 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                               </div>
                               <p className="text-xs text-gray-500 font-bold">{selectedOrder.type} Service Session</p>
                               <p className="text-[10px] text-gray-400">Created: {new Date(selectedOrder.createdAt).toLocaleString()}</p>
+                              <div className="pt-2">
+                                <AdminLiveTimer order={selectedOrder} />
+                              </div>
                            </div>
                         </div>
                      </div>
@@ -2343,6 +2426,14 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                animate={{ opacity: 1, x: 0 }}
                className="space-y-8"
              >
+                {/* Comprehensive Multi-Filter Per-Order Financial & Commission Report */}
+                <AdminTransactionReports
+                  orders={orders}
+                  chefs={chefs}
+                  allUsers={allUsers}
+                  config={config}
+                />
+
                 {/* Advanced Analytics, Heatmap & Multi-Metric Graphs */}
                 <AnalyticsReportsView 
                   orders={orders}
@@ -2350,126 +2441,8 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                   allUsers={allUsers}
                   config={config}
                 />
-
-                 {/* Centralized Per-Transaction Ledger Table */}
-                 <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="p-8 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                       <div>
-                          <h4 className="font-black text-lg tracking-tight text-gray-900">Per-Transaction Financial & Commission Ledger</h4>
-                          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-0.5">Centralized automatic split calculation, payment modes & tax invoices</p>
-                       </div>
-                       <div className="flex items-center gap-3">
-                         <button 
-                           onClick={() => {
-                             const totalGross = orders.reduce((acc, o) => acc + (o.totalAmount || 0), 0);
-                             const adminCut = orders.reduce((acc, o) => acc + (o.commissionAdmin || Math.round((o.totalAmount || 0) * 0.3)), 0);
-                             const chefEarnings = orders.reduce((acc, o) => acc + (o.commissionChef || Math.round((o.totalAmount || 0) * 0.7)), 0);
-                             const completedOrders = orders.filter(o => o.status === 'PAID' || o.status === 'COMPLETED').length;
-                             generateExecutiveReportPDF(orders, chefs, config, { totalGross, adminCut, chefEarnings, completedOrders });
-                           }}
-                           className="bg-[#E31E24] hover:bg-red-700 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-md active:scale-95 transition-all cursor-pointer"
-                         >
-                           <Download size={15} /> Download PDF Report
-                         </button>
-                         <button 
-                           onClick={() => window.print()}
-                           className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 transition-all cursor-pointer"
-                         >
-                           Print
-                         </button>
-                       </div>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                       <table className="w-full text-left">
-                          <thead>
-                             <tr className="bg-gray-50 text-[9px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">
-                                <th className="px-6 py-4">Booking / Date</th>
-                                <th className="px-6 py-4">Chef Name</th>
-                                <th className="px-6 py-4">Customer</th>
-                                <th className="px-6 py-4">Type & Time</th>
-                                <th className="px-6 py-4">Total Bill</th>
-                                <th className="px-6 py-4 text-red-600 font-black">Admin Cut</th>
-                                <th className="px-6 py-4 text-green-700 font-black">Chef Share</th>
-                                <th className="px-6 py-4">Status & Mode</th>
-                                <th className="px-6 py-4">Customer Rating</th>
-                                <th className="px-6 py-4 text-right">Invoice PDF</th>
-                             </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                             {orders.slice().reverse().map(o => {
-                                const chef = allUsers.find(u => u.id === o.chefId);
-                                const userItem = allUsers.find(u => u.id === o.userId);
-                                return (
-                                  <tr key={o.id} className="text-xs font-medium hover:bg-gray-50/50 transition-colors">
-                                     <td className="px-6 py-4">
-                                        <div className="font-mono font-black text-gray-900">#{o.bookingId || o.id.slice(-6).toUpperCase()}</div>
-                                        <div className="text-[10px] text-gray-400 font-bold">{new Date(o.createdAt).toLocaleDateString()}</div>
-                                     </td>
-                                     <td className="px-6 py-4">
-                                        <div className="font-bold text-gray-900">{o.chefName || chef?.name || 'Unassigned'}</div>
-                                        <div className="text-[10px] text-gray-400">{o.chefPhone || chef?.phone || ''}</div>
-                                     </td>
-                                     <td className="px-6 py-4">
-                                        <div className="font-bold text-gray-900">{o.userName || userItem?.name || o.userEmail}</div>
-                                        <div className="text-[10px] text-gray-400">{userItem?.phone || o.userPhone || 'N/A'}</div>
-                                     </td>
-                                     <td className="px-6 py-4">
-                                        <span className="px-2 py-0.5 bg-gray-100 rounded text-[9px] font-black uppercase inline-block mb-1">{o.type}</span>
-                                        <div className="text-[10px] text-gray-500 font-bold">{o.durationMinutes || 0} mins</div>
-                                     </td>
-                                     <td className="px-6 py-4 font-black text-gray-900">{formatCurrency(o.totalAmount || 0)}</td>
-                                     <td className="px-6 py-4 font-black text-red-600">
-                                        +{formatCurrency(o.commissionAdmin || Math.round((o.totalAmount || 0) * 0.3))}
-                                     </td>
-                                     <td className="px-6 py-4 font-black text-green-700">
-                                        {formatCurrency(o.commissionChef || Math.round((o.totalAmount || 0) * 0.7))}
-                                     </td>
-                                     <td className="px-6 py-4">
-                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
-                                          o.status === 'PAID' ? 'bg-green-100 text-green-700' :
-                                          o.status === 'COOKING' ? 'bg-red-100 text-red-700' :
-                                          o.status === 'PAYMENT_PENDING' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'
-                                        }`}>
-                                          {o.status}
-                                        </span>
-                                        {o.paymentMethod && (
-                                          <div className="text-[9px] text-gray-400 font-bold mt-0.5">{o.paymentMethod}</div>
-                                        )}
-                                     </td>
-                                     <td className="px-6 py-4">
-                                        {o.rating ? (
-                                           <div>
-                                              <div className="flex items-center text-amber-500 font-black text-xs">
-                                                 {'★'.repeat(o.rating)}
-                                                 {'☆'.repeat(5 - o.rating)}
-                                              </div>
-                                              {o.review && (
-                                                <p className="text-[10px] text-gray-500 italic max-w-xs truncate mt-0.5">"{o.review}"</p>
-                                              )}
-                                           </div>
-                                        ) : (
-                                           <span className="text-[10px] text-gray-300 italic">Not rated</span>
-                                        )}
-                                     </td>
-                                     <td className="px-6 py-4 text-right">
-                                       <button
-                                         onClick={() => generateInvoicePDF(o, config)}
-                                         className="px-3 py-1.5 bg-gray-900 hover:bg-black text-white rounded-xl text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
-                                         title="Download Tax / Service Invoice PDF"
-                                       >
-                                         <Download size={11} className="text-red-400" /> Invoice
-                                       </button>
-                                     </td>
-                                  </tr>
-                                );
-                             })}
-                          </tbody>
-                       </table>
-                    </div>
-                 </div>
-              </motion.div>
-           )}
+             </motion.div>
+          )}
 
           {activeTab === 'database' && (
             <motion.div 

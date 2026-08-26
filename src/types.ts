@@ -113,6 +113,9 @@ export interface Order {
   commissionAdmin?: number;
   paymentMethod?: 'UPI_QR' | 'PHONEPE' | 'CASH' | 'ONLINE';
   paymentId?: string;
+  paymentStatus?: 'PENDING' | 'SUCCESS' | 'FAILED' | 'PAID' | 'REFUNDED';
+  transactionId?: string;
+  paymentGatewayResponse?: any;
   paidAt?: Date | string;
   rating?: number;
   review?: string;
@@ -132,7 +135,11 @@ export interface WithdrawalRequest {
     accountNumber?: string;
     ifscCode?: string;
   };
+  adminNotes?: string;
+  transactionRef?: string;
+  approvedAt?: Date | string;
   createdAt: Date | string;
+  updatedAt?: Date | string;
 }
 
 export interface AppConfig {
