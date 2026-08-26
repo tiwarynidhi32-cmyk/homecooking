@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="hcGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E31E24" />
+      <stop offset="100%" stop-color="#9B0005" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#hcGrad)"/>
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#FFFFFF" stroke-opacity="0.15" stroke-width="4"/>
+  
+  <!-- Chef Hat Icon -->
+  <g transform="translate(106, 86) scale(0.58)" filter="url(#shadow)" fill="#FFFFFF">
+    <path d="M480 384H32c-17.67 0-32-14.33-32-32 0-14.18 9.24-26.2 22.09-30.34C14.77 301.27 10 279.16 10 256c0-61.86 50.14-112 112-112 8.78 0 17.29 1.05 25.48 2.97C167.38 66.86 235.6 16 316 16c88.37 0 160 71.63 160 160 0 13.9-1.8 27.38-5.11 40.24C490.96 226.31 512 258.64 512 296c0 48.6-39.4 88-88 88zM64 432h384c17.67 0 32 14.33 32 32s-14.33 32-32 32H64c-17.67 0-32-14.33-32-32s14.33-32 32-32z"/>
+  </g>
+
+  <!-- Text Badge -->
+  <text x="256" y="440" text-anchor="middle" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="52" letter-spacing="4">HC COOKING</text>
+</svg>

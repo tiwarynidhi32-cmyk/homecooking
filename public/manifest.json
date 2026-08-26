@@ -1,0 +1,33 @@
+{
+  "name": "HC Home Cooking - Chef Service",
+  "short_name": "HC Cooking",
+  "description": "Lucknow's premier professional chef booking & home cooking management platform",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#E31E24",
+  "orientation": "portrait",
+  "lang": "en-US",
+  "categories": ["food", "lifestyle", "business"],
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
