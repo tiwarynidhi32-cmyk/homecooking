@@ -733,7 +733,6 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
            { id: 'config', label: 'Config' },
            { id: 'site', label: 'Site CMS' },
            { id: 'reports', label: 'Per-Order Txn Reports', icon: FileText },
-           { id: 'database', label: 'Supabase & RLS' },
          ].map((t) => {
            const tab = t.id;
            const unassignedCount = orders.filter(o => o.status === OrderStatus.PENDING && !o.chefId).length;
@@ -743,13 +742,6 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
              key={tab}
              onClick={() => {
                setActiveTab(tab as any);
-               if (tab === 'database' && !dbStatus && !isTestingDb) {
-                 setIsTestingDb(true);
-                 api.testSupabaseConnection().then(res => {
-                   setDbStatus(res);
-                   setIsTestingDb(false);
-                 });
-               }
              }}
              className={cn(
                "px-6 py-4 font-black text-[10px] tracking-[0.2em] transition-all relative uppercase whitespace-nowrap flex items-center gap-2",
@@ -2025,7 +2017,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                         Commission Payouts
                       </span>
                       <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                      <span className="text-xs font-bold text-gray-500">Live Supabase Sync</span>
+                      <span className="text-xs font-bold text-gray-500">Cloud Sync Active</span>
                     </div>
                     <h2 className="text-2xl font-black text-gray-900 mt-1">Chef Payout & Withdrawal Management</h2>
                     <p className="text-xs text-gray-500 font-medium mt-0.5">
@@ -2870,215 +2862,6 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                   config={config}
                 />
              </motion.div>
-          )}
-
-          {activeTab === 'database' && (
-            <motion.div 
-              key="database"
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 10 }}
-              className="space-y-6"
-            >
-              {/* Header Card */}
-              <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center">
-                    <Database size={28} />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-gray-900">Supabase Cloud Database & RLS</h3>
-                    <p className="text-xs text-gray-500 font-bold mt-1">
-                      Project: <span className="font-mono text-gray-800">xuidwdgohquxumadqbye.supabase.co</span> • Realtime & Row Level Security Enabled
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    onClick={async () => {
-                      setIsTestingDb(true);
-                      const res = await api.testSupabaseConnection();
-                      setDbStatus(res);
-                      setIsTestingDb(false);
-                    }}
-                    disabled={isTestingDb}
-                    className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50"
-                  >
-                    <RefreshCw size={14} className={isTestingDb ? "animate-spin" : ""} />
-                    {isTestingDb ? "Checking..." : "Test Connection"}
-                  </button>
-
-                  <button
-                    onClick={async () => {
-                      if (!confirm("This will push all cached local records (Users, Menu Items, Config, Orders, Withdrawals) directly to Supabase. Continue?")) return;
-                      setIsSyncingDb(true);
-                      const result = await api.syncAllLocalToSupabase();
-                      setIsSyncingDb(false);
-                      if (result.success) {
-                        alert(`Successfully synced ${result.syncedCount} records to Supabase tables!`);
-                        const checkRes = await api.testSupabaseConnection();
-                        setDbStatus(checkRes);
-                      } else {
-                        alert(`Sync notice: ${result.error || 'Failed to sync all records'}`);
-                      }
-                    }}
-                    disabled={isSyncingDb}
-                    className="flex items-center gap-2 px-5 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-red-600/20 transition-all disabled:opacity-50"
-                  >
-                    <Upload size={14} className={isSyncingDb ? "animate-spin" : ""} />
-                    {isSyncingDb ? "Syncing to Supabase..." : "Push Local Data to Supabase"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Status Banner */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
-                  <div className={cn(
-                    "w-12 h-12 rounded-2xl flex items-center justify-center",
-                    dbStatus?.connected ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
-                  )}>
-                    {dbStatus?.connected ? <CheckCircle size={24} /> : <Server size={24} />}
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-black uppercase text-gray-400">Database Status</div>
-                    <div className="text-base font-black text-gray-900">
-                      {dbStatus?.connected ? "Connected & Synchronized" : dbStatus ? "Tables Initializing" : "Ready to test"}
-                    </div>
-                    {dbStatus?.error && (
-                      <div className="text-[10px] text-red-500 font-bold mt-0.5 max-w-xs truncate">{dbStatus.error}</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-100 text-blue-700 rounded-2xl flex items-center justify-center">
-                    <CheckCircle size={24} />
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-black uppercase text-gray-400">Row Level Security (RLS)</div>
-                    <div className="text-base font-black text-gray-900">Policies Active (FOR ALL)</div>
-                    <div className="text-[10px] text-gray-500 font-bold mt-0.5">Read/Write enabled for app client</div>
-                  </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
-                  <div className="w-12 h-12 bg-purple-100 text-purple-700 rounded-2xl flex items-center justify-center">
-                    <RefreshCw size={24} />
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-black uppercase text-gray-400">Realtime Engine</div>
-                    <div className="text-base font-black text-gray-900">Supabase WebSocket Active</div>
-                    <div className="text-[10px] text-gray-500 font-bold mt-0.5">Live order and status updates</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Tables Matrix */}
-              <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
-                <div className="p-6 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                  <div>
-                    <h4 className="font-black text-xs uppercase tracking-widest text-gray-900">Supabase Tables & Record Counts</h4>
-                    <p className="text-[10px] text-gray-400 font-bold mt-0.5">Database schema definitions with complete RLS coverage</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const sqlContent = `-- Run this in Supabase SQL Editor\n-- File: supabase_schema.sql\n-- Includes all tables: users, app_config, menu_items, orders, withdrawals + RLS Policies`;
-                      navigator.clipboard?.writeText(sqlContent);
-                      setCopiedSql(true);
-                      setTimeout(() => setCopiedSql(false), 3000);
-                    }}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 text-white text-[10px] font-black uppercase tracking-wider hover:bg-black transition-all"
-                  >
-                    {copiedSql ? <Check size={12} /> : <Copy size={12} />}
-                    {copiedSql ? "SQL Reference Copied" : "Copy SQL Schema"}
-                  </button>
-                </div>
-
-                <div className="p-6 overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-100 text-gray-400 uppercase text-[10px] tracking-wider">
-                        <th className="pb-3 font-black">Table Name</th>
-                        <th className="pb-3 font-black">RLS Status</th>
-                        <th className="pb-3 font-black">Realtime Sync</th>
-                        <th className="pb-3 font-black">Primary Key</th>
-                        <th className="pb-3 font-black">Records in App/DB</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50 font-bold">
-                      <tr>
-                        <td className="py-3 font-mono text-red-600 font-black">public.users</td>
-                        <td className="py-3"><span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[9px] font-black">ENABLED (RLS)</span></td>
-                        <td className="py-3 text-gray-600">Active (WebSockets)</td>
-                        <td className="py-3 font-mono text-gray-500 text-[10px]">id (TEXT)</td>
-                        <td className="py-3 text-gray-900 font-black">{allUsers.length} Users</td>
-                      </tr>
-                      <tr>
-                        <td className="py-3 font-mono text-red-600 font-black">public.orders</td>
-                        <td className="py-3"><span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[9px] font-black">ENABLED (RLS)</span></td>
-                        <td className="py-3 text-gray-600">Active (WebSockets)</td>
-                        <td className="py-3 font-mono text-gray-500 text-[10px]">id (UUID/TEXT)</td>
-                        <td className="py-3 text-gray-900 font-black">{orders.length} Orders</td>
-                      </tr>
-                      <tr>
-                        <td className="py-3 font-mono text-red-600 font-black">public.menu_items</td>
-                        <td className="py-3"><span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[9px] font-black">ENABLED (RLS)</span></td>
-                        <td className="py-3 text-gray-600">Active (WebSockets)</td>
-                        <td className="py-3 font-mono text-gray-500 text-[10px]">id (TEXT)</td>
-                        <td className="py-3 text-gray-900 font-black">{menu.length} Dishes</td>
-                      </tr>
-                      <tr>
-                        <td className="py-3 font-mono text-red-600 font-black">public.app_config</td>
-                        <td className="py-3"><span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[9px] font-black">ENABLED (RLS)</span></td>
-                        <td className="py-3 text-gray-600">Active (WebSockets)</td>
-                        <td className="py-3 font-mono text-gray-500 text-[10px]">id ('global_config')</td>
-                        <td className="py-3 text-gray-900 font-black">1 Global Config</td>
-                      </tr>
-                      <tr>
-                        <td className="py-3 font-mono text-red-600 font-black">public.withdrawals</td>
-                        <td className="py-3"><span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[9px] font-black">ENABLED (RLS)</span></td>
-                        <td className="py-3 text-gray-600">Active (WebSockets)</td>
-                        <td className="py-3 font-mono text-gray-500 text-[10px]">id (TEXT)</td>
-                        <td className="py-3 text-gray-900 font-black">{withdrawals.length} Requests</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Supabase SQL Instructions */}
-              <div className="bg-gray-900 text-gray-200 p-8 rounded-[2.5rem] shadow-xl">
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <h4 className="text-white font-black text-sm uppercase tracking-widest">Supabase Setup & SQL Schema Script</h4>
-                    <p className="text-[11px] text-gray-400 mt-1">
-                      Located in <code className="text-red-400 bg-gray-800 px-1.5 py-0.5 rounded">/supabase_schema.sql</code> inside the project root.
-                    </p>
-                  </div>
-                  <a
-                    href="https://supabase.com/dashboard/project/xuidwdgohquxumadqbye/sql/new"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all"
-                  >
-                    Open Supabase SQL Editor
-                  </a>
-                </div>
-
-                <div className="bg-black/50 p-4 rounded-2xl font-mono text-[11px] leading-relaxed text-gray-300 border border-gray-800 overflow-x-auto max-h-56">
-                  <p className="text-gray-500">-- 1. Run supabase_schema.sql in your Supabase SQL Editor to provision tables & RLS:</p>
-                  <p className="text-green-400">ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;</p>
-                  <p className="text-green-400">ALTER TABLE public.app_config ENABLE ROW LEVEL SECURITY;</p>
-                  <p className="text-green-400">ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;</p>
-                  <p className="text-green-400">ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;</p>
-                  <p className="text-green-400">ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;</p>
-                  <p className="text-blue-300">CREATE POLICY "Allow public all on users" ON public.users FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);</p>
-                  <p className="text-blue-300">CREATE POLICY "Allow public all on orders" ON public.orders FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);</p>
-                </div>
-              </div>
-            </motion.div>
           )}
         </AnimatePresence>
       </div>

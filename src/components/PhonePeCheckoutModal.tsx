@@ -11,7 +11,7 @@ import {
   ChefHat, 
   ArrowRight,
   QrCode,
-  Sparkles
+  Smartphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Order } from '../types';
@@ -77,10 +77,10 @@ export default function PhonePeCheckoutModal({
     setPollCount(0);
   };
 
-  const initiatePayment = async () => {
+  const initiatePayment = async (autoOpen = false) => {
     setLoading(true);
     setStatus('INITIATING');
-    setStatusMessage('Connecting to PhonePe Payment Gateway...');
+    setStatusMessage('Connecting to PhonePe Live Gateway...');
 
     try {
       const res = await api.createPhonePePayment(order.id, amount, undefined, order.bookingId);
@@ -89,31 +89,46 @@ export default function PhonePeCheckoutModal({
         setMerchantOrderId(res.merchantOrderId || null);
         setPhonepeOrderId(res.payment?.response_data?.orderId || null);
         setStatus('AWAITING_PAYMENT');
-        setStatusMessage('Payment initiated. Please complete the payment on PhonePe.');
+        setStatusMessage('Payment initiated. Click below to complete on PhonePe.');
+        
+        if (autoOpen) {
+          triggerPortalOpen(res.paymentUrl);
+        }
       } else if (res.merchantOrderId) {
         setMerchantOrderId(res.merchantOrderId);
         setStatus('AWAITING_PAYMENT');
         setStatusMessage('Payment session active. Complete payment via PhonePe gateway.');
       } else {
-        // Fallback
         setStatus('AWAITING_PAYMENT');
-        setStatusMessage('Ready for payment.');
+        setStatusMessage('PhonePe gateway ready.');
       }
     } catch (err: any) {
-      console.warn('PhonePe init error, fallback active:', err);
+      console.warn('PhonePe init error:', err);
       setStatus('AWAITING_PAYMENT');
-      setStatusMessage('Direct UPI / Gateway checkout available.');
+      setStatusMessage('PhonePe portal ready for payment.');
     } finally {
       setLoading(false);
     }
   };
 
+  const triggerPortalOpen = (url: string) => {
+    try {
+      const newWin = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!newWin || newWin.closed || typeof newWin.closed === 'undefined') {
+        // Popup was blocked by browser (common on iOS Safari / macOS / APK WebViews), navigate directly
+        window.location.href = url;
+      }
+    } catch (e) {
+      window.location.href = url;
+    }
+  };
+
   const openPhonePePortal = () => {
     if (paymentUrl) {
-      window.open(paymentUrl, '_blank', 'noopener,noreferrer');
+      triggerPortalOpen(paymentUrl);
     } else {
-      // Re-initiate or open standard checkout
-      initiatePayment();
+      // Re-initiate and immediately open when ready
+      initiatePayment(true);
     }
   };
 
@@ -144,7 +159,7 @@ export default function PhonePeCheckoutModal({
     } catch (err: any) {
       if (showLoading) {
         setStatus('AWAITING_PAYMENT');
-        setStatusMessage('Could not verify status. Please check again or confirm manually.');
+        setStatusMessage('Could not verify status yet. Please complete payment and check again.');
       }
     }
   };
@@ -163,15 +178,7 @@ export default function PhonePeCheckoutModal({
     }
   };
 
-  const simulateSuccess = async () => {
-    setLoading(true);
-    setStatus('CHECKING');
-    setStatusMessage('Simulating instant sandbox confirmation...');
-    setTimeout(async () => {
-      await handleSuccessCompletion();
-      setLoading(false);
-    }, 800);
-  };
+  const upiIntentUrl = `upi://pay?pa=${upiId}&pn=HC%20Home%20Cooking&am=${amount}&cu=INR&tn=Booking%20${order.bookingId || order.id}`;
 
   if (!isOpen) return null;
 
@@ -315,12 +322,21 @@ export default function PhonePeCheckoutModal({
                     disabled={loading}
                     className="w-full h-14 bg-gradient-to-r from-[#5f259f] to-[#7b1fa2] hover:opacity-95 text-white rounded-2xl font-black uppercase tracking-wider text-sm shadow-xl shadow-purple-900/20 flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
                   >
-                    <span>Pay {formatCurrency(amount)} via PhonePe</span>
-                    <ExternalLink size={16} />
+                    {loading ? (
+                      <div className="flex items-center gap-2">
+                        <RefreshCw size={16} className="animate-spin" />
+                        <span>Opening PhonePe Gateway...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <span>Pay {formatCurrency(amount)} via PhonePe</span>
+                        <ExternalLink size={16} />
+                      </>
+                    )}
                   </button>
 
-                  {/* Actions row: Verify Status & Sandbox Instant Confirm */}
-                  <div className="grid grid-cols-2 gap-3 pt-1">
+                  {/* Actions row: Verify Status & Direct App Pay */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                     <button
                       onClick={() => checkStatus(true)}
                       disabled={loading || !merchantOrderId}
@@ -330,15 +346,13 @@ export default function PhonePeCheckoutModal({
                       Verify Status
                     </button>
 
-                    <button
-                      onClick={simulateSuccess}
-                      disabled={loading}
-                      title="Simulate successful payment response for testing in sandbox"
-                      className="h-11 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
+                    <a
+                      href={upiIntentUrl}
+                      className="h-11 bg-purple-50 hover:bg-purple-100 text-[#5f259f] border border-purple-200 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
                     >
-                      <Sparkles size={14} className="text-emerald-600" />
-                      Test Sandbox Pay
-                    </button>
+                      <Smartphone size={14} className="text-[#5f259f]" />
+                      Open UPI App
+                    </a>
                   </div>
                 </div>
               )}

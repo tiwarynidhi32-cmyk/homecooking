@@ -381,7 +381,7 @@ export default function ApkDownloadModal({ isOpen, onClose, config }: ApkDownloa
             <div className="space-y-4">
               <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">
                 <div>
-                  <h5 className="font-black text-xs uppercase tracking-wider text-gray-900">Supabase & Local Storage Health</h5>
+                  <h5 className="font-black text-xs uppercase tracking-wider text-gray-900">Cloud & Local Storage Health</h5>
                   <p className="text-xs text-gray-600 font-medium">All menu items, bookings, users, and admin configurations stay synchronized.</p>
                 </div>
                 <button 

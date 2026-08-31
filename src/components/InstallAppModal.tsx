@@ -152,7 +152,7 @@ export default function InstallAppModal({ isOpen, onClose, config }: InstallAppM
             </div>
             <div className="flex items-center gap-1.5 text-gray-500 font-medium">
               <Database size={13} className="text-red-600" />
-              <span>Supabase / Offline Cache Active</span>
+              <span>Cloud & Offline Cache Active</span>
             </div>
           </div>
 
@@ -274,7 +274,7 @@ export default function InstallAppModal({ isOpen, onClose, config }: InstallAppM
           {activeTab === 'instructions' && (
             <div className="space-y-4">
               <div className="bg-red-50/60 p-4 rounded-2xl border border-red-100 text-xs text-red-900 font-medium">
-                <strong>Why APK / WebAPK Installation Works Perfectly:</strong> Our app is built with a production-grade Web App Manifest, Service Worker offline cache, and Supabase cloud persistence. When installed on Android or wrapped via PWABuilder / Capacitor, it runs as a native standalone Android APK.
+                <strong>Why APK / WebAPK Installation Works Perfectly:</strong> Our app is built with a production-grade Web App Manifest, Service Worker offline cache, and real-time cloud persistence. When installed on Android or wrapped via PWABuilder / Capacitor, it runs as a native standalone Android APK.
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -316,8 +316,8 @@ export default function InstallAppModal({ isOpen, onClose, config }: InstallAppM
             <div className="space-y-4">
               <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">
                 <div>
-                  <h5 className="font-black text-xs uppercase tracking-wider text-gray-900">Live Supabase Database Sync</h5>
-                  <p className="text-xs text-gray-600 font-medium">All menu items, bookings, users, and admin configurations are stored in Supabase with local offline fallback.</p>
+                  <h5 className="font-black text-xs uppercase tracking-wider text-gray-900">Live Cloud Database Sync</h5>
+                  <p className="text-xs text-gray-600 font-medium">All menu items, bookings, users, and admin configurations are stored in secure cloud storage with local offline fallback.</p>
                 </div>
                 <button 
                   onClick={handleManualSync}
