@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Send,
   XCircle,
+  AlertCircle,
   Plus,
   LocateFixed,
   CreditCard,
@@ -32,6 +33,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../services/api';
 import PhonePeCheckoutModal from '../components/PhonePeCheckoutModal';
+import { CancelBookingModal } from '../components/CancelBookingModal';
 import { 
   COMPANY_WHATSAPP_NUMBER, 
   getCustomerToChefWhatsAppUrl, 
@@ -63,6 +65,7 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
   const [myOrders, setMyOrders] = useState<Order[]>([]);
   const [isBooking, setIsBooking] = useState(false);
   const [currentUser, setCurrentUser] = useState<User>(user);
+  const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
   const [newAddress, setNewAddress] = useState({ label: '', address: '', location: '' });
   const [isAddingAddress, setIsAddingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
@@ -819,6 +822,7 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
                         order={order} 
                         config={config} 
                         onPayPhonePe={(ord) => setSelectedPaymentOrder(ord)} 
+                        onCancelClick={(ord) => setCancellingOrder(ord)}
                       />
                     </div>
                   ))}
@@ -992,6 +996,20 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
           upiId={config?.upiId}
         />
       )}
+
+      {/* Cancel Booking Confirmation Modal */}
+      {cancellingOrder && (
+        <CancelBookingModal
+          isOpen={!!cancellingOrder}
+          onClose={() => setCancellingOrder(null)}
+          order={cancellingOrder}
+          role="USER"
+          onCancelled={(updated) => {
+            setCancellingOrder(null);
+            setMyOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1000,9 +1018,10 @@ interface OrderCardProps {
   order: Order;
   config: AppConfig | null;
   onPayPhonePe?: (order: Order) => void;
+  onCancelClick?: (order: Order) => void;
 }
 
-function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
+function OrderCard({ order, config, onPayPhonePe, onCancelClick }: OrderCardProps) {
   const [showQR, setShowQR] = useState(false);
   const [rating, setRating] = useState(order.rating || 0);
   const [review, setReview] = useState(order.review || '');
@@ -1012,9 +1031,9 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
   const [editedAddress, setEditedAddress] = useState(order.address || '');
   const [isUpdatingAddress, setIsUpdatingAddress] = useState(false);
 
-  // Live timer tick for active cooking session
+  // Live timer tick for active cooking session or 1-minute cancellation window
   useEffect(() => {
-    if (order.status === OrderStatus.COOKING) {
+    if (order.status === OrderStatus.COOKING || order.status === OrderStatus.PENDING) {
       const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
       return () => clearInterval(timer);
     }
@@ -1024,6 +1043,12 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
   const elapsedMins = Math.floor(elapsedSecs / 60);
   const elapsedSecRemaining = elapsedSecs % 60;
   const liveTimerString = `${elapsedMins.toString().padStart(2, '0')}:${elapsedSecRemaining.toString().padStart(2, '0')}`;
+
+  // Time elapsed since booking creation
+  const createdTimestamp = new Date(order.createdAt).getTime();
+  const orderElapsedSeconds = Math.max(0, Math.floor((currentTime - createdTimestamp) / 1000));
+  const isWithinFreeWindow = orderElapsedSeconds <= 60;
+  const freeSecondsRemaining = Math.max(0, 60 - orderElapsedSeconds);
 
   const handlePhonePePay = async () => {
     if (onPayPhonePe) {
@@ -1079,14 +1104,17 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
   };
 
   const isChefAccepted = Boolean(order.chefName || order.status === OrderStatus.COOKING);
+  const isCancelled = order.status === OrderStatus.CANCELLED;
 
   return (
-    <div className="bg-white rounded-3xl md:rounded-[2.5rem] border border-gray-100 shadow-sm p-6 md:p-8 space-y-6">
+    <div className={`bg-white rounded-3xl md:rounded-[2.5rem] border shadow-sm p-6 md:p-8 space-y-6 ${
+      isCancelled ? 'border-red-200 bg-red-50/20' : 'border-gray-100'
+    }`}>
       <div className="flex justify-between items-start">
         <div>
           <span className="text-[10px] font-black uppercase tracking-widest text-red-600">Booking #{order.bookingId || order.id.slice(-6).toUpperCase()}</span>
           <h4 className="text-xl font-black text-gray-900 mt-1">{order.type === 'PARTY' ? 'Party Special Booking' : 'Daily Meal Session'}</h4>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{new Date(order.createdAt).toLocaleDateString()}</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{new Date(order.createdAt).toLocaleDateString()} • {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
         </div>
         <span className={cn(
           "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
@@ -1094,14 +1122,72 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
           order.status === OrderStatus.COMPLETED ? "bg-blue-100 text-blue-700" :
           order.status === OrderStatus.COOKING ? "bg-red-100 text-red-700 animate-pulse" :
           order.status === OrderStatus.PAYMENT_PENDING ? "bg-orange-100 text-orange-700" :
+          order.status === OrderStatus.CANCELLED ? "bg-rose-100 text-rose-800" :
           "bg-gray-100 text-gray-700"
         )}>
           {order.status}
         </span>
       </div>
 
+      {/* CANCELLED ORDER SPECIAL BANNER */}
+      {isCancelled && (
+        <div className="p-5 bg-rose-50 border border-rose-200 rounded-2xl space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-rose-800">
+              <XCircle size={20} className="text-rose-600" />
+              <span className="text-xs font-black uppercase tracking-wider">
+                Booking Cancelled {order.cancelledBy ? `by ${order.cancelledBy}` : ''}
+              </span>
+            </div>
+            {order.cancelledAt && (
+              <span className="text-[10px] font-bold text-gray-500">
+                {new Date(order.cancelledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </div>
+
+          {order.cancellationReason && (
+            <p className="text-xs text-rose-950 font-medium italic bg-white/70 p-2.5 rounded-xl border border-rose-100">
+              "{order.cancellationReason}"
+            </p>
+          )}
+
+          {/* Cancellation Penalty Breakdown */}
+          {order.cancellationPenalty && order.cancellationPenalty > 0 ? (
+            <div className="pt-2 border-t border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">Cancellation Penalty</span>
+                <p className="text-xl font-black text-rose-700">₹{order.cancellationPenalty}.00</p>
+                <p className="text-[10px] text-gray-500 font-medium">Applied for cancellation after 1-minute window</p>
+              </div>
+
+              {order.paymentStatus === 'PAID' ? (
+                <span className="px-3.5 py-2 bg-green-100 text-green-700 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                  <CheckCircle2 size={15} /> Penalty Paid
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handlePhonePePay}
+                  className="px-4 py-2.5 bg-gradient-to-r from-[#5f259f] to-[#7b1fa2] text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:opacity-95 active:scale-95 transition-all flex items-center gap-1.5"
+                >
+                  <span className="w-4 h-4 rounded bg-white/20 flex items-center justify-center text-[9px]">पे</span>
+                  <span>Pay ₹{order.cancellationPenalty} with PhonePe</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="pt-2 border-t border-rose-200/60">
+              <span className="text-[11px] font-black text-emerald-700">
+                {order.cancelledBy === 'CHEF' ? '✓ Cancelled by Chef • ₹0 Free (No penalty charged)' : '✓ Free Cancellation within 1-min grace period (₹0 Penalty)'}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Chef Accepted & Assigned Notification Banner */}
-      {isChefAccepted && (
+      {isChefAccepted && !isCancelled && (
         <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1144,7 +1230,7 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
       )}
 
       {/* Live Cooking Status / OTP Banner */}
-      {order.status === OrderStatus.PENDING && (
+      {order.status === OrderStatus.PENDING && !isCancelled && (
         <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 flex items-center justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Chef Arrival OTP</p>
@@ -1154,7 +1240,7 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
         </div>
       )}
 
-      {order.status === OrderStatus.COOKING && (
+      {order.status === OrderStatus.COOKING && !isCancelled && (
         <div className="p-4 bg-red-50 rounded-2xl border border-red-200 flex items-center justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-wider text-red-600">🍳 Cooking Live</p>
@@ -1171,16 +1257,18 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
             <MapPin size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
             <span className="leading-snug">{order.address}</span>
           </div>
-          <button 
-            type="button"
-            onClick={() => setIsEditingAddress(!isEditingAddress)}
-            className="text-[10px] font-bold text-red-600 hover:text-red-700 underline flex-shrink-0 ml-2"
-          >
-            {isEditingAddress ? 'Cancel' : 'Edit / Add Landmark'}
-          </button>
+          {!isCancelled && (
+            <button 
+              type="button"
+              onClick={() => setIsEditingAddress(!isEditingAddress)}
+              className="text-[10px] font-bold text-red-600 hover:text-red-700 underline flex-shrink-0 ml-2"
+            >
+              {isEditingAddress ? 'Cancel' : 'Edit / Add Landmark'}
+            </button>
+          )}
         </div>
 
-        {isEditingAddress && (
+        {isEditingAddress && !isCancelled && (
           <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2">
             <textarea
               rows={2}
@@ -1248,50 +1336,52 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
       )}
 
       {/* Total Amount & Payment Options */}
-      <div className="pt-4 border-t border-gray-100 space-y-4">
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Total Amount</p>
-            <p className="text-2xl font-black text-gray-900">
-              {order.totalAmount ? formatCurrency(order.totalAmount) : (order.status === OrderStatus.COOKING ? 'Calculating...' : '₹0')}
-            </p>
+      {!isCancelled && (
+        <div className="pt-4 border-t border-gray-100 space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Total Amount</p>
+              <p className="text-2xl font-black text-gray-900">
+                {order.totalAmount ? formatCurrency(order.totalAmount) : (order.status === OrderStatus.COOKING ? 'Calculating...' : '₹0')}
+              </p>
+            </div>
+
+            {order.status === OrderStatus.COOKING && (
+              <span className="text-xs font-bold text-red-600 bg-red-50 px-3 py-1 rounded-full border border-red-100">
+                Timer Active
+              </span>
+            )}
           </div>
 
-          {order.status === OrderStatus.COOKING && (
-            <span className="text-xs font-bold text-red-600 bg-red-50 px-3 py-1 rounded-full border border-red-100">
-              Timer Active
-            </span>
+          {order.status === OrderStatus.PAYMENT_PENDING && (
+            <div className="space-y-2 pt-2">
+              <button
+                onClick={handlePhonePePay}
+                className="w-full h-12 bg-gradient-to-r from-[#5f259f] to-[#7b1fa2] hover:opacity-95 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-purple-900/20 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+              >
+                <span className="w-5 h-5 rounded-md bg-white/20 flex items-center justify-center text-[10px]">पे</span>
+                <span>Pay {formatCurrency(order.totalAmount || 0)} with PhonePe</span>
+              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setShowQR(!showQR)}
+                  className="h-10 bg-gray-900 hover:bg-black text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <QrCode size={14} /> Scan UPI QR
+                </button>
+                <button
+                  onClick={handleCashPay}
+                  disabled={isPaying}
+                  className="h-10 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
+                >
+                  Pay Cash
+                </button>
+              </div>
+            </div>
           )}
         </div>
-
-        {order.status === OrderStatus.PAYMENT_PENDING && (
-          <div className="space-y-2 pt-2">
-            <button
-              onClick={handlePhonePePay}
-              className="w-full h-12 bg-gradient-to-r from-[#5f259f] to-[#7b1fa2] hover:opacity-95 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-purple-900/20 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
-            >
-              <span className="w-5 h-5 rounded-md bg-white/20 flex items-center justify-center text-[10px]">पे</span>
-              <span>Pay {formatCurrency(order.totalAmount || 0)} with PhonePe</span>
-            </button>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setShowQR(!showQR)}
-                className="h-10 bg-gray-900 hover:bg-black text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
-              >
-                <QrCode size={14} /> Scan UPI QR
-              </button>
-              <button
-                onClick={handleCashPay}
-                disabled={isPaying}
-                className="h-10 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
-              >
-                Pay Cash
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* UPI QR Modal / Inset */}
       {showQR && (
@@ -1310,6 +1400,36 @@ function OrderCard({ order, config, onPayPhonePe }: OrderCardProps) {
             className="w-full h-11 bg-green-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-green-700"
           >
             {isPaying ? 'Confirming...' : 'I have completed the payment'}
+          </button>
+        </div>
+      )}
+
+      {/* USER CANCELLATION BUTTON FOR ACTIVE / PENDING BOOKINGS */}
+      {(order.status === OrderStatus.PENDING || order.status === OrderStatus.COOKING) && !isCancelled && (
+        <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="text-left">
+            {isWithinFreeWindow ? (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800">
+                  <Clock size={11} /> Free Cancellation ({freeSecondsRemaining}s left)
+                </span>
+                <span className="text-[10px] text-emerald-700 font-bold hidden sm:inline">₹0 penalty</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
+                  <AlertCircle size={11} /> ₹100 Cancellation Fee (After 1 min)
+                </span>
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onCancelClick && onCancelClick(order)}
+            className="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 active:scale-95 border border-red-200/60"
+          >
+            <XCircle size={15} /> Cancel Booking
           </button>
         </div>
       )}

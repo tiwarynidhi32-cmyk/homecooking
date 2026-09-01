@@ -120,6 +120,10 @@ export interface Order {
   rating?: number;
   review?: string;
   createdAt: Date | string;
+  cancelledBy?: 'USER' | 'CHEF' | 'ADMIN';
+  cancellationReason?: string;
+  cancellationPenalty?: number;
+  cancelledAt?: Date | string;
 }
 
 export interface WithdrawalRequest {

@@ -66,31 +66,31 @@ export default function AppLogo({
     );
   }
 
-  // Modern Vector Emblem Logo
+// Modern Vector Emblem Logo
   return (
     <div className={cn("flex items-center gap-3 select-none group", className)}>
       <div className="relative">
         <div className={cn(
           dim.box,
-          "bg-gradient-to-br from-red-500 via-red-600 to-rose-700 flex items-center justify-center text-white shadow-lg shadow-red-500/25 relative overflow-hidden transition-all duration-300 group-hover:scale-105 group-hover:shadow-red-500/40"
+          "bg-gradient-to-br from-red-600 via-red-700 to-rose-800 flex items-center justify-center text-white shadow-lg shadow-red-500/25 relative overflow-hidden transition-all duration-300 group-hover:scale-105 group-hover:shadow-red-500/40 border border-red-400/30"
         )}>
           {/* Subtle decorative inner sheen */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-white/20 pointer-events-none" />
           
           <ChefHat size={dim.icon} className="relative z-10 drop-shadow-sm transition-transform group-hover:rotate-[-6deg]" />
           
-          {/* Golden accent sparkle */}
-          <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-amber-300 rounded-full animate-pulse" />
+          {/* Fresh Emerald Green accent sparkle */}
+          <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
         </div>
 
-        {/* Verified gold badge dot */}
-        <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-gradient-to-tr from-amber-500 to-yellow-300 rounded-full border-2 border-white shadow-sm flex items-center justify-center">
+        {/* Verified Emerald green badge dot */}
+        <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-gradient-to-tr from-emerald-600 to-emerald-400 rounded-full border-2 border-white shadow-sm flex items-center justify-center">
           <div className="w-1 h-1 bg-white rounded-full" />
         </div>
       </div>
 
       <div className="flex flex-col">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <span className={cn(
             "font-black tracking-tighter leading-none text-gray-900",
             dim.title,
@@ -98,7 +98,7 @@ export default function AppLogo({
           )}>
             HC HOME
           </span>
-          <span className="inline-block px-1.5 py-0.2 bg-red-50 text-red-600 border border-red-200/60 rounded text-[8px] font-black tracking-tight uppercase">
+          <span className="inline-flex items-center px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-300/80 rounded text-[8px] font-black tracking-tight uppercase">
             PRO
           </span>
         </div>

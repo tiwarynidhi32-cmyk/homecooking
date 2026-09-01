@@ -313,7 +313,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
     const reason = prompt('Please enter cancellation reason for customer:', 'Cancelled by Admin');
     if (reason === null) return;
     try {
-      const updated = await api.cancelOrder(orderId, reason);
+      const updated = await api.cancelOrder(orderId, { cancelledBy: 'ADMIN', reason: reason || 'Cancelled by Admin', penalty: 0 });
       setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
       if (selectedOrder?.id === orderId) setSelectedOrder(updated);
       setAssignModalOrder(null);
@@ -1154,6 +1154,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                     { id: 'PAYMENT_PENDING', label: '💳 Payment Pending', count: orders.filter(o => o.status === OrderStatus.PAYMENT_PENDING).length },
                     { id: 'PAID', label: '💰 Paid', count: orders.filter(o => o.status === OrderStatus.PAID).length },
                     { id: 'COMPLETED', label: '✅ Completed', count: orders.filter(o => o.status === OrderStatus.COMPLETED).length },
+                    { id: 'CANCELLED', label: '❌ Cancelled', count: orders.filter(o => o.status === OrderStatus.CANCELLED).length },
                   ].map(f => (
                     <button
                       key={f.id}
@@ -1283,6 +1284,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                                      order.status === 'COMPLETED' ? 'bg-blue-100 text-blue-700' : 
                                      order.status === 'PAYMENT_PENDING' ? 'bg-orange-100 text-orange-700' :
                                      order.status === 'COOKING' ? 'bg-red-100 text-red-700 animate-pulse' :
+                                     order.status === 'CANCELLED' ? 'bg-rose-100 text-rose-700' :
                                      'bg-gray-100 text-gray-700'
                                    )}>{order.status}</span>
                                 </td>
@@ -1405,6 +1407,34 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                            </div>
                         )}
                      </div>
+
+                     {selectedOrder.status === OrderStatus.CANCELLED && (
+                       <div className="bg-rose-50 border border-rose-200 p-5 rounded-3xl space-y-2 text-rose-900">
+                         <div className="flex items-center gap-2">
+                           <XCircle size={18} className="text-rose-600" />
+                           <h4 className="text-xs font-black uppercase tracking-wider text-rose-700">
+                             Booking Cancelled by {selectedOrder.cancelledBy || 'User / Chef / Admin'}
+                           </h4>
+                         </div>
+                         {selectedOrder.cancellationReason && (
+                           <p className="text-xs font-medium text-rose-800">
+                             <span className="font-bold">Reason:</span> {selectedOrder.cancellationReason}
+                           </p>
+                         )}
+                         {selectedOrder.cancellationPenalty ? (
+                           <p className="text-xs font-bold text-rose-700">
+                             Cancellation Penalty: {formatCurrency(selectedOrder.cancellationPenalty)} (Charged due to cancellation after 1-minute window)
+                           </p>
+                         ) : (
+                           <p className="text-xs text-rose-600 font-medium">No penalty applied (cancelled within 1-minute grace period or by chef/admin).</p>
+                         )}
+                         {selectedOrder.cancelledAt && (
+                           <p className="text-[10px] text-rose-500 font-mono">
+                             Cancelled at: {new Date(selectedOrder.cancelledAt).toLocaleString()}
+                           </p>
+                         )}
+                       </div>
+                     )}
 
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
@@ -2582,8 +2612,8 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                                    </select>
                                 </div>
                                 <div className="space-y-2">
-                                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Current Media Preview</label>
-                                   <div className="w-full aspect-video bg-white rounded-[2rem] overflow-hidden shadow-inner flex items-center justify-center text-gray-200 group relative cursor-pointer">
+                                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Current Media Preview (3:1 Aspect Ratio / 1200x400)</label>
+                                   <div className="w-full aspect-[3/1] bg-white rounded-[2rem] overflow-hidden shadow-inner flex items-center justify-center text-gray-200 group relative cursor-pointer border border-gray-100">
                                       {config.homeBannerType === 'video' ? (
                                          <video src={config.homeBannerUrl} className="w-full h-full object-cover" muted loop autoPlay />
                                       ) : (

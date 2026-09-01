@@ -28,13 +28,15 @@ import {
   QrCode,
   Copy,
   Share2,
-  ExternalLink
+  ExternalLink,
+  XCircle
 } from 'lucide-react';
 import { User, Order, OrderStatus, AppConfig, WithdrawalRequest } from '../types';
 import { cn, formatCurrency } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../services/api';
+import { CancelBookingModal } from '../components/CancelBookingModal';
 import { 
   getChefToCustomerWhatsAppUrl, 
   getGoogleMapsQueryUrl, 
@@ -52,6 +54,7 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
   const [elapsedTime, setElapsedTime] = useState(0);
   const [otpInput, setOtpInput] = useState('');
   const [showPaymentQR, setShowPaymentQR] = useState(false);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   
   // Wallet & Withdrawal states
   const [walletBalance, setWalletBalance] = useState(0);
@@ -716,6 +719,14 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
                               >
                                  <Play size={18} fill="currentColor" /> Verify OTP & Start Timer
                               </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setIsCancelModalOpen(true)}
+                                className="w-full py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer mt-2"
+                              >
+                                <XCircle size={15} /> Decline / Cancel Mission
+                              </button>
                             </div>
                          </div>
                        )}
@@ -739,12 +750,22 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
                               <p className="text-xs font-bold text-red-400 mt-1">Approx. {Math.ceil(elapsedTime / 60)} mins • {formatCurrency(Math.ceil(elapsedTime / 60) * (activeOrder.ratePerMin || 3))}</p>
                             </div>
 
-                            <button 
-                              onClick={endCooking} 
-                              className="w-full h-14 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black flex items-center justify-center gap-2 text-sm shadow-xl shadow-red-600/30 transition-all active:scale-95"
-                            >
-                               <Square size={18} fill="currentColor" /> Stop Cooking & Generate Final Bill
-                            </button>
+                            <div className="space-y-2">
+                              <button 
+                                onClick={endCooking} 
+                                className="w-full h-14 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black flex items-center justify-center gap-2 text-sm shadow-xl shadow-red-600/30 transition-all active:scale-95"
+                              >
+                                 <Square size={18} fill="currentColor" /> Stop Cooking & Generate Final Bill
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setIsCancelModalOpen(true)}
+                                className="w-full py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                              >
+                                <XCircle size={15} /> Cancel Mission (Emergency)
+                              </button>
+                            </div>
                          </div>
                        )}
 
@@ -1327,6 +1348,23 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Cancel Mission Modal for Chef */}
+      {activeOrder && (
+        <CancelBookingModal
+          isOpen={isCancelModalOpen}
+          onClose={() => setIsCancelModalOpen(false)}
+          order={activeOrder}
+          role="CHEF"
+          onCancelled={(updated) => {
+            setIsCancelModalOpen(false);
+            setActiveOrder(null);
+            setElapsedTime(0);
+            setOtpInput('');
+            loadData();
+          }}
+        />
+      )}
     </div>
   );
 }

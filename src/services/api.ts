@@ -1,6 +1,6 @@
 import { User, Order, UserRole, OrderStatus, AppConfig, MenuItem, WithdrawalRequest, OrderType } from '../types';
 // @ts-ignore
-import chefHeroImage from '../assets/images/indian_home_chef_1781542950747.jpg';
+import officialBannerImage from '../assets/images/hchome_official_banner_1788236680661.jpg';
 import { supabase } from './supabaseClient';
 
 // Storage keys for cache & fallback
@@ -59,7 +59,7 @@ const initialConfig: AppConfig = {
   directorMessage: 'At HC Home Cooking, we understand that food is more than just sustenance; it\'s health and heritage. Our mission is to bring the expertise of professional Indian chefs into your homes in Lucknow. We focus on hygiene, authentic taste, and personal care.\n\nWe are committed to serving only Lucknow, ensuring that our local community receives the highest quality of service. Our chefs are handpicked for their expertise in traditional and contemporary Indian cooking, helping you maintain a healthy lifestyle without compromising on taste.',
   directorName: 'Mr. Amreesh Kumar Gupta',
   directorPhoto: 'https://images.unsplash.com/photo-1583394238182-6f3ad46881d8?auto=format&fit=crop&q=80&w=400',
-  homeBannerUrl: chefHeroImage,
+  homeBannerUrl: officialBannerImage,
   homeBannerType: 'image',
   partyMenuImageUrl: '',
   dailyVegImageUrl: '',
@@ -183,6 +183,10 @@ function mapOrderFromDB(row: any): Order {
     commissionChef: row.commission_chef ? Number(row.commission_chef) : 0,
     rating: row.rating ? Number(row.rating) : undefined,
     review: row.review,
+    cancelledBy: row.cancelled_by,
+    cancellationReason: row.cancellation_reason,
+    cancellationPenalty: row.cancellation_penalty !== undefined ? Number(row.cancellation_penalty) : undefined,
+    cancelledAt: row.cancelled_at,
     paymentMethod: row.payment_method,
     paymentId: row.payment_id,
     paidAt: row.paid_at,
@@ -221,6 +225,10 @@ function mapOrderToDB(order: Partial<Order>): any {
   if (order.commissionChef !== undefined) row.commission_chef = order.commissionChef;
   if (order.rating !== undefined) row.rating = order.rating;
   if (order.review !== undefined) row.review = order.review;
+  if (order.cancelledBy !== undefined) row.cancelled_by = order.cancelledBy;
+  if (order.cancellationReason !== undefined) row.cancellation_reason = order.cancellationReason;
+  if (order.cancellationPenalty !== undefined) row.cancellation_penalty = order.cancellationPenalty;
+  if (order.cancelledAt !== undefined) row.cancelled_at = order.cancelledAt;
   if (order.paymentMethod !== undefined) row.payment_method = order.paymentMethod;
   if (order.paymentId !== undefined) row.payment_id = order.paymentId;
   if (order.paidAt !== undefined) row.paid_at = order.paidAt;
@@ -735,11 +743,47 @@ class ApiService {
     });
   }
 
-  async cancelOrder(orderId: string, reason?: string): Promise<Order> {
-    return this.updateOrder(orderId, {
+  async cancelOrder(
+    orderId: string, 
+    options?: {
+      cancelledBy?: 'USER' | 'CHEF' | 'ADMIN';
+      reason?: string;
+      penalty?: number;
+    } | string
+  ): Promise<Order> {
+    let cancelledBy: 'USER' | 'CHEF' | 'ADMIN' = 'ADMIN';
+    let reason = 'Booking cancelled';
+    let penalty = 0;
+
+    if (typeof options === 'string') {
+      reason = options;
+      if (options.toLowerCase().includes('customer') || options.toLowerCase().includes('user')) {
+        cancelledBy = 'USER';
+      } else if (options.toLowerCase().includes('chef')) {
+        cancelledBy = 'CHEF';
+      }
+    } else if (options) {
+      cancelledBy = options.cancelledBy || 'ADMIN';
+      reason = options.reason || (cancelledBy === 'USER' ? 'Cancelled by User' : cancelledBy === 'CHEF' ? 'Cancelled by Chef' : 'Cancelled by Admin');
+      penalty = typeof options.penalty === 'number' ? options.penalty : 0;
+    }
+
+    const existing = this.ordersCache.find(o => o.id === orderId);
+    const updates: Partial<Order> = {
       status: OrderStatus.CANCELLED,
-      review: reason ? `Cancelled: ${reason}` : 'Cancelled by Admin/Customer'
-    });
+      cancelledBy,
+      cancellationReason: reason,
+      cancellationPenalty: penalty,
+      cancelledAt: new Date().toISOString(),
+      review: `Cancelled by ${cancelledBy}: ${reason}${penalty > 0 ? ` (₹${penalty} Penalty Applied)` : ''}`
+    };
+
+    if (penalty > 0) {
+      updates.totalAmount = penalty;
+      updates.paymentStatus = 'PENDING';
+    }
+
+    return this.updateOrder(orderId, updates);
   }
 
   async getConfig(): Promise<AppConfig> {
