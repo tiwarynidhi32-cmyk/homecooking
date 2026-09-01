@@ -1,5 +1,4 @@
 import React from 'react';
-import { ChefHat, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { AppConfig } from '../types';
 
@@ -33,14 +32,13 @@ export default function AppLogo({
       <div className={cn("flex items-center gap-3 group", className)}>
         <div className={cn(
           dim.box,
-          "relative bg-white shadow-md border border-gray-100 flex items-center justify-center overflow-hidden p-1 transition-transform group-hover:scale-105"
+          "relative bg-black shadow-md border border-gray-900 flex items-center justify-center overflow-hidden p-0.5 transition-transform group-hover:scale-105"
         )}>
           <img 
             src={config.logo} 
             alt="HC Home Cooking Logo" 
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain rounded-lg"
             onError={(e) => {
-              // Fallback to vector icon if custom image fails to load
               e.currentTarget.style.display = 'none';
             }}
           />
@@ -66,27 +64,34 @@ export default function AppLogo({
     );
   }
 
-// Modern Vector Emblem Logo
+  // Official HC Home Cooking Emblem Logo (Black Background + Red Circle + White HC)
   return (
     <div className={cn("flex items-center gap-3 select-none group", className)}>
       <div className="relative">
         <div className={cn(
           dim.box,
-          "bg-gradient-to-br from-red-600 via-red-700 to-rose-800 flex items-center justify-center text-white shadow-lg shadow-red-500/25 relative overflow-hidden transition-all duration-300 group-hover:scale-105 group-hover:shadow-red-500/40 border border-red-400/30"
+          "bg-black flex items-center justify-center text-white shadow-lg shadow-black/30 relative overflow-hidden transition-all duration-300 group-hover:scale-105 border border-zinc-800"
         )}>
-          {/* Subtle decorative inner sheen */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-white/20 pointer-events-none" />
-          
-          <ChefHat size={dim.icon} className="relative z-10 drop-shadow-sm transition-transform group-hover:rotate-[-6deg]" />
-          
-          {/* Fresh Emerald Green accent sparkle */}
-          <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
+          {/* Authentic HC Red Circle Emblem SVG */}
+          <svg viewBox="0 0 100 100" className="w-full h-full p-0.5">
+            {/* Red Circle with organic contour */}
+            <circle cx="50" cy="46" r="38" fill="#FF2636" />
+            {/* White handwritten HC */}
+            <g fill="none" stroke="#FFFFFF" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M 33 28 L 30 64" />
+              <path d="M 27 46 L 47 43" />
+              <path d="M 45 30 L 42 61" />
+              <path d="M 68 31 C 58 27, 49 35, 51 47 C 52 57, 60 62, 70 57" strokeWidth="6.5" />
+            </g>
+            {/* White Home Cooking Subtitle */}
+            <text x="50" y="94" textAnchor="middle" fill="#FFFFFF" fontFamily="system-ui, sans-serif" fontWeight="800" fontSize="10.5" letterSpacing="0.3">
+              Home cooking
+            </text>
+          </svg>
         </div>
 
-        {/* Verified Emerald green badge dot */}
-        <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-gradient-to-tr from-emerald-600 to-emerald-400 rounded-full border-2 border-white shadow-sm flex items-center justify-center">
-          <div className="w-1 h-1 bg-white rounded-full" />
-        </div>
+        {/* Verified green active badge */}
+        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-zinc-900 shadow-sm" />
       </div>
 
       <div className="flex flex-col">

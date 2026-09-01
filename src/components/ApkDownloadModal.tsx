@@ -265,6 +265,23 @@ export default function ApkDownloadModal({ isOpen, onClose, config }: ApkDownloa
                 )}
               </div>
 
+              {/* Mobile Home Screen Launcher Icon Preview */}
+              <div className="flex items-center gap-4 p-4 bg-zinc-950 text-white rounded-3xl border border-zinc-800 shadow-inner">
+                <div className="w-16 h-16 rounded-2xl bg-black border border-zinc-800 flex items-center justify-center p-1 shadow-lg flex-shrink-0">
+                  <img src="/icon-192.svg" alt="HC Home Cooking App Icon" className="w-full h-full object-contain rounded-xl" />
+                </div>
+                <div className="space-y-0.5 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-red-500">Android Launcher Icon</span>
+                    <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded text-white font-mono">192x192 & 512x512</span>
+                  </div>
+                  <h5 className="font-black text-sm text-white truncate">HC Home Cooking</h5>
+                  <p className="text-xs text-zinc-400 font-medium">
+                    This official icon will appear on your phone home screen, app drawer & splash screen.
+                  </p>
+                </div>
+              </div>
+
               {/* QR Code & Mobile URL */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center bg-gray-50 p-5 rounded-3xl border border-gray-100">
                 <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-gray-200 shadow-sm">

@@ -1,6 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#E31E24"/>
-  <g transform="translate(13, 10) scale(0.076)" fill="#FFFFFF">
-    <path d="M480 384H32c-17.67 0-32-14.33-32-32 0-14.18 9.24-26.2 22.09-30.34C14.77 301.27 10 279.16 10 256c0-61.86 50.14-112 112-112 8.78 0 17.29 1.05 25.48 2.97C167.38 66.86 235.6 16 316 16c88.37 0 160 71.63 160 160 0 13.9-1.8 27.38-5.11 40.24C490.96 226.31 512 258.64 512 296c0 48.6-39.4 88-88 88zM64 432h384c17.67 0 32 14.33 32 32s-14.33 32-32 32H64c-17.67 0-32-14.33-32-32s14.33-32 32-32z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Black Background Canvas -->
+  <rect width="64" height="64" rx="14" fill="#000000" />
+  
+  <!-- Red Organic Circle -->
+  <circle cx="32" cy="27" r="22" fill="#FF2636" />
+
+  <!-- Handwritten "H" and "C" in White -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 23 18 L 21 36" />
+    <path d="M 19 28 L 29 26" />
+    <path d="M 28 19 L 27 34" />
+    <path d="M 42 19 C 36 17, 32 21, 33 28 C 33 33, 37 36, 43 33" stroke-width="3.8" />
   </g>
+
+  <!-- Text -->
+  <text x="32" y="58" text-anchor="middle" fill="#FFFFFF" font-family="system-ui, sans-serif" font-weight="800" font-size="7.5" letter-spacing="0.2">Home cooking</text>
 </svg>

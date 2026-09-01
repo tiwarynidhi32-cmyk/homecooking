@@ -1,14 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-  <defs>
-    <linearGradient id="hcGrad192" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#E31E24" />
-      <stop offset="100%" stop-color="#9B0005" />
-    </linearGradient>
-  </defs>
-  <rect width="192" height="192" rx="42" fill="url(#hcGrad192)"/>
-  <!-- Chef Hat -->
-  <g transform="translate(38, 30) scale(0.23)" fill="#FFFFFF">
-    <path d="M480 384H32c-17.67 0-32-14.33-32-32 0-14.18 9.24-26.2 22.09-30.34C14.77 301.27 10 279.16 10 256c0-61.86 50.14-112 112-112 8.78 0 17.29 1.05 25.48 2.97C167.38 66.86 235.6 16 316 16c88.37 0 160 71.63 160 160 0 13.9-1.8 27.38-5.11 40.24C490.96 226.31 512 258.64 512 296c0 48.6-39.4 88-88 88zM64 432h384c17.67 0 32 14.33 32 32s-14.33 32-32 32H64c-17.67 0-32-14.33-32-32s14.33-32 32-32z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <!-- Black Background Canvas -->
+  <rect width="192" height="192" rx="38" fill="#000000" />
+  
+  <!-- Red Organic Circle -->
+  <path d="M 96 18 
+           C 134 18, 164 47, 164 85 
+           C 164 122, 134 151, 96 151 
+           C 89 151, 83 149, 79 152 
+           C 76 157, 78 160, 76 161
+           C 75 159, 73 154, 71 150
+           C 47 146, 28 119, 28 85 
+           C 28 47, 58 18, 96 18 Z" 
+        fill="#FF2636" />
+
+  <!-- Handwritten "H" in White -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Left vertical leg of H -->
+    <path d="M 68 56 Q 65 83 62 111" />
+    <!-- Horizontal crossbar of H -->
+    <path d="M 57 86 Q 72 84 89 80" />
+    <!-- Right vertical leg of H -->
+    <path d="M 86 61 Q 84 84 82 104" />
+
+    <!-- Handwritten "C" in White -->
+    <path d="M 126 61 
+             C 109 56, 95 68, 96 87 
+             C 98 103, 111 112, 128 104" stroke-width="10" />
   </g>
-  <text x="96" y="166" text-anchor="middle" fill="#FFFFFF" font-family="system-ui, sans-serif" font-weight="900" font-size="20" letter-spacing="1.5">HC COOK</text>
+
+  <!-- "Home cooking" Handwritten Subtitle Text -->
+  <g fill="#FFFFFF">
+    <text x="96" y="178" 
+          text-anchor="middle" 
+          font-family="'Caveat', 'Segoe Script', 'Brush Script MT', cursive, sans-serif" 
+          font-weight="700" 
+          font-size="24" 
+          letter-spacing="0.5">Home cooking</text>
+  </g>
 </svg>

@@ -135,8 +135,11 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
       setActiveOrder(myActive || null);
 
       // Audible Alert Logic for Chef:
-      // If chef is online and there are bookings waiting (or assigned to chef) and chef is not actively cooking:
-      const shouldRing = isOnline && (pendingUnassigned.length > 0 || myAssignedPending.length > 0) && (!myActive || myActive.status === OrderStatus.PENDING);
+      // Ring ONLY if:
+      // 1. Chef is online
+      // 2. Chef does NOT currently have an accepted active booking in progress (!myActive)
+      // 3. There are unassigned pending bookings waiting to be claimed
+      const shouldRing = isOnline && !myActive && pendingUnassigned.length > 0;
       if (shouldRing) {
         soundService.startOrderRingtone();
       } else {
@@ -212,8 +215,11 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
       );
       setActiveOrder(active || null);
 
-      if (isOnline && pendingUnassigned.length > 0 && (!active || active.status === OrderStatus.PENDING)) {
+      const shouldRing = isOnline && !active && pendingUnassigned.length > 0;
+      if (shouldRing) {
         soundService.startOrderRingtone();
+      } else {
+        soundService.stopOrderRingtone();
       }
     } catch (err) {
       console.warn("Failed to fetch orders", err);
@@ -226,7 +232,7 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
     if (!nextStatus) {
       soundService.stopOrderRingtone();
     } else {
-      if (orders.length > 0) {
+      if (!activeOrder && orders.length > 0) {
         soundService.startOrderRingtone();
       }
     }
@@ -248,19 +254,26 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
 
   const acceptOrder = async (order: Order) => {
     try {
+      // 1. Immediately silence ringtone
+      soundService.stopOrderRingtone();
+
       const updated = await api.updateOrder(order.id, { 
         chefId: user.id,
         chefName: `${user.name} ${user.surname}`.trim(),
         chefPhone: user.phone || user.whatsapp
       });
+      
+      // 2. Play distinct single acceptance chime
       soundService.playAcceptSound();
+      
+      // 3. Set active order and update pending order state
       setActiveOrder(updated);
       setJustAcceptedOrder(updated);
       const remainingOrders = orders.filter(o => o.id !== order.id);
       setOrders(remainingOrders);
-      if (remainingOrders.length === 0) {
-        soundService.stopOrderRingtone();
-      }
+      
+      // 4. Ensure ringtone remains stopped while on active mission
+      soundService.stopOrderRingtone();
       setActiveTab('missions');
     } catch (err) {
       alert('Failed to accept order');
@@ -549,7 +562,7 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
 
       {/* Live Ringing Notification Alert for Chefs */}
       <AnimatePresence>
-        {orders.length > 0 && (!activeOrder || activeOrder.status === OrderStatus.PENDING) && (
+        {!activeOrder && orders.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -10, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -622,7 +635,9 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
                   onClick={() => {
                     soundService.setMuted(false);
                     setIsMuted(false);
-                    soundService.startOrderRingtone();
+                    if (!activeOrder && orders.length > 0) {
+                      soundService.startOrderRingtone();
+                    }
                   }}
                   className="flex-1 sm:flex-initial h-11 px-5 bg-white text-emerald-800 hover:bg-white/90 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg transition-all active:scale-95 whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5"
                 >

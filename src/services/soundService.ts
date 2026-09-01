@@ -289,7 +289,6 @@ class SoundService {
    * Stop the ringtone once the order is accepted or confirmed
    */
   public stopOrderRingtone() {
-    if (!this.isRingingActive) return;
     this.isRingingActive = false;
     if (this.ringInterval) {
       clearInterval(this.ringInterval);
