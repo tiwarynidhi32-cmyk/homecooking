@@ -146,6 +146,16 @@ export interface WithdrawalRequest {
   updatedAt?: Date | string;
 }
 
+export interface BannerSlide {
+  id: string;
+  url: string;
+  type?: 'image' | 'video' | 'gif';
+  title?: string;
+  subtitle?: string;
+  linkUrl?: string;
+  active?: boolean;
+}
+
 export interface AppConfig {
   logo?: string;
   address: string;
@@ -163,6 +173,8 @@ export interface AppConfig {
   refundPolicy?: string;
   homeBannerUrl?: string;
   homeBannerType?: 'image' | 'video' | 'gif';
+  banners?: BannerSlide[];
+  bannerAutoplayInterval?: number;
   partyMenuImageUrl?: string;
   dailyVegImageUrl?: string;
   cookingRatePerMin?: number;

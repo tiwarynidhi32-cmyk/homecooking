@@ -1,6 +1,8 @@
-import { User, Order, UserRole, OrderStatus, AppConfig, MenuItem, WithdrawalRequest, OrderType } from '../types';
+import { User, Order, UserRole, OrderStatus, AppConfig, MenuItem, WithdrawalRequest, OrderType, BannerSlide } from '../types';
 // @ts-ignore
 import officialBannerImage from '../assets/images/hchome_official_banner_1788236680661.jpg';
+// @ts-ignore
+import indianHomeChefImage from '../assets/images/indian_home_chef_1781542950747.jpg';
 import { supabase } from './supabaseClient';
 
 // Storage keys for cache & fallback
@@ -61,6 +63,25 @@ const initialConfig: AppConfig = {
   directorPhoto: 'https://images.unsplash.com/photo-1583394238182-6f3ad46881d8?auto=format&fit=crop&q=80&w=400',
   homeBannerUrl: officialBannerImage,
   homeBannerType: 'image',
+  banners: [
+    {
+      id: 'banner_1',
+      url: officialBannerImage,
+      type: 'image',
+      title: 'HC Home Cooking Lucknow',
+      subtitle: 'Homemade Taste, Made with Care',
+      active: true
+    },
+    {
+      id: 'banner_2',
+      url: indianHomeChefImage,
+      type: 'image',
+      title: 'Verified Home Chefs at ₹3/min',
+      subtitle: 'Arrives in 30 minutes with strict hygiene',
+      active: true
+    }
+  ],
+  bannerAutoplayInterval: 4500,
   partyMenuImageUrl: '',
   dailyVegImageUrl: '',
   cookingRatePerMin: 3,
@@ -254,6 +275,8 @@ function mapConfigFromDB(row: any): AppConfig {
     directorPhoto: row.director_photo ?? initialConfig.directorPhoto,
     homeBannerUrl: row.home_banner_url ?? initialConfig.homeBannerUrl,
     homeBannerType: row.home_banner_type ?? initialConfig.homeBannerType,
+    banners: row.banners ?? initialConfig.banners,
+    bannerAutoplayInterval: row.banner_autoplay_interval ? Number(row.banner_autoplay_interval) : initialConfig.bannerAutoplayInterval,
     partyMenuImageUrl: row.party_menu_image_url ?? initialConfig.partyMenuImageUrl,
     dailyVegImageUrl: row.daily_veg_image_url ?? initialConfig.dailyVegImageUrl,
     cookingRatePerMin: row.cooking_rate_per_min ? Number(row.cooking_rate_per_min) : 3,
@@ -280,6 +303,8 @@ function mapConfigToDB(config: Partial<AppConfig>): any {
   if (config.directorPhoto !== undefined) row.director_photo = config.directorPhoto;
   if (config.homeBannerUrl !== undefined) row.home_banner_url = config.homeBannerUrl;
   if (config.homeBannerType !== undefined) row.home_banner_type = config.homeBannerType;
+  if (config.banners !== undefined) row.banners = config.banners;
+  if (config.bannerAutoplayInterval !== undefined) row.banner_autoplay_interval = config.bannerAutoplayInterval;
   if (config.partyMenuImageUrl !== undefined) row.party_menu_image_url = config.partyMenuImageUrl;
   if (config.dailyVegImageUrl !== undefined) row.daily_veg_image_url = config.dailyVegImageUrl;
   if (config.cookingRatePerMin !== undefined) row.cooking_rate_per_min = config.cookingRatePerMin;

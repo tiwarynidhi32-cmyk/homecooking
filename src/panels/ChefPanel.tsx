@@ -42,6 +42,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../services/api';
 import { soundService } from '../services/soundService';
 import { CancelBookingModal } from '../components/CancelBookingModal';
+import BannerSlider from '../components/BannerSlider';
 import { 
   getChefToCustomerWhatsAppUrl, 
   getGoogleMapsQueryUrl, 
@@ -53,7 +54,7 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
   const [activeTab, setActiveTab] = useState<'missions' | 'wallet' | 'reports'>('missions');
   const [orders, setOrders] = useState<Order[]>([]);
   const [allChefOrders, setAllChefOrders] = useState<Order[]>([]);
-  const [isOnline, setIsOnline] = useState(user.isOnline || false);
+  const [isOnline, setIsOnline] = useState<boolean>(user.isOnline !== false);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [justAcceptedOrder, setJustAcceptedOrder] = useState<Order | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -548,32 +549,98 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
 
       {/* Live Ringing Notification Alert for Chefs */}
       <AnimatePresence>
-        {isRinging && (
+        {orders.length > 0 && (!activeOrder || activeOrder.status === OrderStatus.PENDING) && (
           <motion.div
             initial={{ opacity: 0, y: -10, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.98 }}
-            className="bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white p-4 md:p-5 rounded-3xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 border-2 border-white/20 animate-pulse"
+            className={cn(
+              "p-4 md:p-5 rounded-3xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 border-2 transition-all",
+              isRinging 
+                ? "bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white border-white/30 animate-pulse shadow-red-500/20" 
+                : !isOnline
+                ? "bg-gradient-to-r from-amber-600 to-orange-600 text-white border-white/20 shadow-orange-500/20"
+                : "bg-gradient-to-r from-gray-900 to-gray-800 text-white border-gray-700 shadow-gray-900/20"
+            )}
           >
             <div className="flex items-center gap-3.5 text-center sm:text-left">
-              <div className="w-12 h-12 rounded-2xl bg-white text-red-600 flex items-center justify-center font-black flex-shrink-0 shadow-lg animate-bounce">
-                <BellRing size={24} />
+              <div className={cn(
+                "w-12 h-12 rounded-2xl flex items-center justify-center font-black flex-shrink-0 shadow-lg",
+                isRinging 
+                  ? "bg-white text-red-600 animate-bounce" 
+                  : !isOnline
+                  ? "bg-white text-amber-600"
+                  : "bg-white/10 text-white"
+              )}>
+                {isRinging ? <BellRing size={24} /> : <Bell size={24} />}
               </div>
               <div>
-                <div className="flex items-center gap-2 justify-center sm:justify-start">
+                <div className="flex items-center gap-2 justify-center sm:justify-start flex-wrap">
                   <span className="text-[10px] font-black uppercase tracking-widest bg-white/25 px-2.5 py-0.5 rounded-full">
-                    🔊 Audible Ringing Alert Active
+                    {isRinging 
+                      ? '🔊 Audible Ringing Alert Active' 
+                      : !isOnline 
+                      ? '⚠️ Chef Offline — Ringing Paused' 
+                      : isMuted 
+                      ? '🔕 Ringtone Muted' 
+                      : '⚡ New Cooking Mission Available'}
                   </span>
+                  {orders[0] && (
+                    <span className="text-[10px] font-mono font-bold bg-black/30 px-2 py-0.5 rounded-md text-white/90">
+                      #{orders[0].bookingId || orders[0].id.slice(-6).toUpperCase()}
+                    </span>
+                  )}
                 </div>
                 <h4 className="text-base md:text-lg font-black tracking-tight mt-0.5">
-                  New Booking Request Waiting in Lucknow!
+                  {orders.length === 1 
+                    ? `1 New Booking Request Waiting in Lucknow!` 
+                    : `${orders.length} New Booking Requests Waiting in Lucknow!`}
                 </h4>
                 <p className="text-xs text-white/90 font-medium">
-                  Audible sound notification is ringing. Accept now to claim this mission.
+                  {isRinging
+                    ? 'Loud chime ringtone is active. Tap below to accept or silence.'
+                    : !isOnline
+                    ? 'Switch online to hear audible chimes & receive live dispatch.'
+                    : 'Tap below to test sound or accept your cooking mission.'}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+
+            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap justify-end">
+              {!isOnline ? (
+                <button
+                  type="button"
+                  onClick={toggleOnline}
+                  className="flex-1 sm:flex-initial h-11 px-5 bg-white text-amber-800 hover:bg-white/90 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg transition-all active:scale-95 whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Sparkles size={14} className="text-amber-600" />
+                  <span>Go Online & Ring Now</span>
+                </button>
+              ) : isMuted ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundService.setMuted(false);
+                    setIsMuted(false);
+                    soundService.startOrderRingtone();
+                  }}
+                  className="flex-1 sm:flex-initial h-11 px-5 bg-white text-emerald-800 hover:bg-white/90 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg transition-all active:scale-95 whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Volume2 size={14} className="text-emerald-600" />
+                  <span>Unmute & Play Ringtone</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleTestRingtone}
+                  className="h-11 px-3.5 bg-white/20 hover:bg-white/30 text-white rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  title="Test alert chime volume"
+                >
+                  <Volume2 size={14} />
+                  <span>Test Sound</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
@@ -582,17 +649,21 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
                     acceptOrder(orders[0]);
                   }
                 }}
-                className="flex-1 sm:flex-initial h-11 px-5 bg-white text-red-700 hover:bg-white/90 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg transition-all active:scale-95 whitespace-nowrap cursor-pointer"
+                className="flex-1 sm:flex-initial h-11 px-5 bg-gray-950 text-white hover:bg-black rounded-xl font-black text-xs uppercase tracking-wider shadow-lg transition-all active:scale-95 whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5"
               >
-                Accept 1st Booking
+                <CheckCircle size={14} className="text-green-400" />
+                <span>Accept Mission</span>
               </button>
-              <button
-                type="button"
-                onClick={() => soundService.stopOrderRingtone()}
-                className="h-11 px-4 bg-black/30 hover:bg-black/40 text-white rounded-xl font-bold text-xs transition-all active:scale-95 whitespace-nowrap cursor-pointer"
-              >
-                Silence Ringtone
-              </button>
+
+              {isRinging && (
+                <button
+                  type="button"
+                  onClick={() => soundService.stopOrderRingtone()}
+                  className="h-11 px-3.5 bg-black/30 hover:bg-black/40 text-white rounded-xl font-bold text-xs transition-all active:scale-95 whitespace-nowrap cursor-pointer"
+                >
+                  Silence
+                </button>
+              )}
             </div>
           </motion.div>
         )}
@@ -693,6 +764,19 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
           </button>
         </div>
       </div>
+
+      {/* Chef Notice & Incentive Banner Slider (100% Uncropped) */}
+      <BannerSlider
+        banners={config?.banners}
+        defaultBannerUrl={config?.homeBannerUrl}
+        defaultBannerType={config?.homeBannerType}
+        autoplayInterval={config?.bannerAutoplayInterval || 4500}
+        showControls={true}
+        showDots={true}
+        showBadge={true}
+        maxHeight="max-h-[360px]"
+        badgeLabel="Chef Notices & Offers"
+      />
 
       <AnimatePresence mode="wait">
         {/* TAB 1: LIVE MISSIONS */}
@@ -993,12 +1077,55 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
               <div className="space-y-6">
                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
-                       <h3 className="font-black text-2xl tracking-tight text-gray-900">Available Bookings in Lucknow</h3>
+                       <div className="flex items-center gap-2">
+                         <h3 className="font-black text-2xl tracking-tight text-gray-900">Available Bookings in Lucknow</h3>
+                         {orders.length > 0 && (
+                           <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-red-100 text-red-700 animate-pulse">
+                             {orders.length} New
+                           </span>
+                         )}
+                       </div>
                        <p className="text-xs text-gray-500 font-medium">New customer requests matching your area</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                       <div className="bg-red-50 border border-red-100 px-4 py-2 rounded-2xl flex items-center gap-2">
-                          <Wallet size={16} className="text-red-600" />
+                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                       {/* Sound Quick Toggle */}
+                       <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200/80 p-1 rounded-2xl">
+                         <button 
+                           type="button"
+                           onClick={toggleSoundMute}
+                           title={isMuted ? "Sound is Muted - Click to Unmute" : "Audible Notification Sound is ON"}
+                           className={cn(
+                             "px-3 py-1.5 rounded-xl font-black text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer",
+                             isMuted ? "bg-amber-100 text-amber-900 hover:bg-amber-200" : "bg-emerald-600 text-white hover:bg-emerald-700"
+                           )}
+                         >
+                           {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} className={isRinging ? "animate-bounce" : ""} />}
+                           <span>{isMuted ? 'Muted' : 'Sound ON'}</span>
+                         </button>
+                         <button
+                           type="button"
+                           onClick={handleTestRingtone}
+                           title="Test alert chime"
+                           className="px-2 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-wider text-gray-600 hover:bg-gray-200 transition-all flex items-center gap-1 cursor-pointer"
+                         >
+                           <Sparkles size={11} className="text-amber-500" />
+                           <span>Test</span>
+                         </button>
+                       </div>
+
+                       {!isOnline && (
+                         <button
+                           type="button"
+                           onClick={toggleOnline}
+                           className="px-3.5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-sm transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                         >
+                           <CheckCircle size={14} />
+                           <span>Go Online</span>
+                         </button>
+                       )}
+
+                       <div className="bg-red-50 border border-red-100 px-3.5 py-2 rounded-2xl flex items-center gap-2">
+                          <Wallet size={15} className="text-red-600" />
                           <span className="text-xs font-black text-gray-900">Wallet: {formatCurrency(walletBalance)}</span>
                        </div>
                     </div>

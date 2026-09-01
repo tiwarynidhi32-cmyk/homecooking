@@ -23,6 +23,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import AppLogo from './AppLogo';
 import ApkDownloadModal from './ApkDownloadModal';
+import BannerSlider from './BannerSlider';
 // @ts-ignore
 import officialBannerImage from '../assets/images/hchome_official_banner_1788236680661.jpg';
 // @ts-ignore
@@ -143,25 +144,22 @@ export default function LandingPage({ config, onExplore }: { config: AppConfig |
               </div>
            </motion.div>
 
-           <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
-              className="flex flex-col space-y-4"
+              className="flex flex-col space-y-4 w-full"
            >
-              {/* Official 3:1 Banner Display (1200x400 pixels desktop, 360x120 pixels mobile) */}
-              <div className="relative rounded-2xl md:rounded-[2rem] overflow-hidden shadow-2xl border border-gray-200/80 w-full max-w-[360px] lg:max-w-[1200px] aspect-[3/1] bg-[#faf7f2] group mx-auto flex items-center justify-center">
-                {configToUse.homeBannerType === 'video' ? (
-                  <video src={bannerUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
-                ) : (
-                  <img 
-                    src={bannerUrl} 
-                    alt="HCHOME Cooking Banner" 
-                    className="w-full h-full object-contain md:object-cover" 
-                    referrerPolicy="no-referrer" 
-                  />
-                )}
-              </div>
+              {/* Multi-Image Banner Slider (100% Uncropped from Top, Bottom & Sides) */}
+              <BannerSlider
+                banners={configToUse.banners}
+                defaultBannerUrl={bannerUrl}
+                defaultBannerType={configToUse.homeBannerType}
+                autoplayInterval={configToUse.bannerAutoplayInterval || 4500}
+                showControls={true}
+                showDots={true}
+                showBadge={true}
+              />
 
               {/* Tagline Card cleanly positioned DOWN below the banner (no overlap) */}
               <motion.div 
@@ -284,16 +282,16 @@ export default function LandingPage({ config, onExplore }: { config: AppConfig |
             {configToUse.partyMenuImageUrl && (
               <div className="space-y-4">
                 <h4 className="text-sm font-black uppercase tracking-widest text-red-600 italic">Party Special Menu Reference</h4>
-                <div className="rounded-[3rem] overflow-hidden border-8 border-white shadow-2xl aspect-[4/3]">
-                  <img src={configToUse.partyMenuImageUrl} className="w-full h-full object-cover" alt="Party Menu" />
+                <div className="rounded-[2.5rem] overflow-hidden border-8 border-white shadow-2xl bg-gray-50 flex items-center justify-center min-h-[300px]">
+                  <img src={configToUse.partyMenuImageUrl} className="w-full h-auto max-h-[500px] object-contain block" alt="Party Menu" />
                 </div>
               </div>
             )}
             {configToUse.dailyVegImageUrl && (
               <div className="space-y-4">
                 <h4 className="text-sm font-black uppercase tracking-widest text-emerald-600 italic">Daily Vegetable List</h4>
-                <div className="rounded-[3rem] overflow-hidden border-8 border-white shadow-2xl aspect-[4/3]">
-                  <img src={configToUse.dailyVegImageUrl} className="w-full h-full object-cover" alt="Daily Veg" />
+                <div className="rounded-[2.5rem] overflow-hidden border-8 border-white shadow-2xl bg-gray-50 flex items-center justify-center min-h-[300px]">
+                  <img src={configToUse.dailyVegImageUrl} className="w-full h-auto max-h-[500px] object-contain block" alt="Daily Veg" />
                 </div>
               </div>
             )}

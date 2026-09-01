@@ -70,6 +70,8 @@ import AnalyticsReportsView from '../components/AnalyticsReportsView';
 import DailyPerformanceWidget from '../components/DailyPerformanceWidget';
 import { AdminLiveTimer } from '../components/AdminLiveTimer';
 import { AdminTransactionReports } from '../components/AdminTransactionReports';
+import BannerSlider from '../components/BannerSlider';
+import BannerSliderManager from '../components/BannerSliderManager';
 import { generateExecutiveReportPDF, generateInvoicePDF } from '../utils/pdfGenerator';
 
 export default function AdminPanel({ user, config: initialConfig, onUpdateConfig }: { user: User, config: AppConfig | null, onUpdateConfig?: () => void }) {
@@ -78,7 +80,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
   const [orders, setOrders] = useState<Order[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
-  const [activeTab, setActiveTab] = useState<'performance' | 'chefs' | 'menu' | 'reports' | 'config' | 'withdrawals' | 'orders' | 'users' | 'site' | 'retention' | 'chef_dropoff'>('performance');
+  const [activeTab, setActiveTab] = useState<'performance' | 'chefs' | 'menu' | 'reports' | 'config' | 'withdrawals' | 'orders' | 'users' | 'site' | 'banners' | 'retention' | 'chef_dropoff'>('performance');
   const [showAddChef, setShowAddChef] = useState(false);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -735,6 +737,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
            { id: 'retention', label: 'Reorder Analysis', icon: Repeat },
            { id: 'chef_dropoff', label: 'Chef Churn & 1-Service', icon: AlertTriangle },
            { id: 'withdrawals', label: 'Withdrawals', icon: Wallet },
+           { id: 'banners', label: 'Banners & Slider', icon: Sparkles },
            { id: 'menu', label: 'Menu' },
            { id: 'config', label: 'Config' },
            { id: 'site', label: 'Site CMS' },
@@ -2673,6 +2676,28 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
             );
           })()}
 
+          {activeTab === 'banners' && (
+            <motion.div
+              key="banners"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-6"
+            >
+              <BannerSliderManager 
+                config={config} 
+                onSave={async (updatedConfig) => {
+                  try {
+                    const res = await api.updateConfig(updatedConfig);
+                    setConfig(res);
+                    if (onUpdateConfig) onUpdateConfig();
+                  } catch (err: any) {
+                    alert(err?.message || "Failed to update banner configuration");
+                  }
+                }} 
+              />
+            </motion.div>
+          )}
+
           {activeTab === 'site' && (
              <motion.div 
                key="site"
@@ -2868,12 +2893,12 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                                    </select>
                                 </div>
                                 <div className="space-y-2">
-                                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Current Media Preview (3:1 Aspect Ratio / 1200x400)</label>
-                                   <div className="w-full aspect-[3/1] bg-white rounded-[2rem] overflow-hidden shadow-inner flex items-center justify-center text-gray-200 group relative cursor-pointer border border-gray-100">
+                                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Current Media Preview (Full Uncropped View)</label>
+                                   <div className="w-full bg-[#faf7f2] rounded-2xl md:rounded-[2rem] overflow-hidden shadow-inner flex items-center justify-center text-gray-200 group relative cursor-pointer border border-gray-100 min-h-[160px]">
                                       {config.homeBannerType === 'video' ? (
-                                         <video src={config.homeBannerUrl} className="w-full h-full object-cover" muted loop autoPlay />
+                                         <video src={config.homeBannerUrl} className="w-full h-auto max-h-[350px] object-contain block" muted loop autoPlay />
                                       ) : (
-                                         <img src={config.homeBannerUrl} className="w-full h-full object-cover" alt="Banner" />
+                                         <img src={config.homeBannerUrl} className="w-full h-auto max-h-[350px] object-contain block" alt="Banner" />
                                       )}
                                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
                                          <Upload size={32} />

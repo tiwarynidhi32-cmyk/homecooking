@@ -35,6 +35,7 @@ import { api } from '../services/api';
 import PhonePeCheckoutModal from '../components/PhonePeCheckoutModal';
 import { CancelBookingModal } from '../components/CancelBookingModal';
 import ActiveChefsWidget from '../components/ActiveChefsWidget';
+import BannerSlider from '../components/BannerSlider';
 import { 
   COMPANY_WHATSAPP_NUMBER, 
   getCustomerToChefWhatsAppUrl, 
@@ -391,6 +392,18 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
          </div>
          <div className="absolute right-0 top-0 h-full w-1/2 bg-[url('https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&q=80&w=1000')] bg-cover bg-center brightness-75 hide-on-mobile opacity-50" />
       </section>
+
+      {/* Banner / Slider Notice (100% Uncropped) */}
+      <BannerSlider
+        banners={config?.banners}
+        defaultBannerUrl={config?.homeBannerUrl}
+        defaultBannerType={config?.homeBannerType}
+        autoplayInterval={config?.bannerAutoplayInterval || 4500}
+        showControls={true}
+        showDots={true}
+        showBadge={true}
+        maxHeight="max-h-[380px]"
+      />
 
       {/* Registered User Profile Info Bar */}
       <div className="bg-white rounded-3xl p-4 md:p-5 border border-red-100/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
