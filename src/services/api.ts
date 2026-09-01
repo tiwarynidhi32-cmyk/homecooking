@@ -437,6 +437,29 @@ class ApiService {
   private setupRealtimeSubscriptions() {
     try {
       supabase
+        .channel('public:users_realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newUser = mapUserFromDB(payload.new);
+            if (!this.usersCache.some(u => u.id === newUser.id)) {
+              this.usersCache.push(newUser);
+              saveToStorage(USERS_KEY, this.usersCache);
+              this.notifyUserChange(newUser);
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = mapUserFromDB(payload.new);
+            this.usersCache = this.usersCache.map(u => u.id === updated.id ? updated : u);
+            saveToStorage(USERS_KEY, this.usersCache);
+            this.notifyUserChange(updated);
+          } else if (payload.eventType === 'DELETE') {
+            this.usersCache = this.usersCache.filter(u => u.id !== (payload.old as any).id);
+            saveToStorage(USERS_KEY, this.usersCache);
+            this.notifyUserChange();
+          }
+        })
+        .subscribe();
+
+      supabase
         .channel('public:orders_realtime')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
           if (payload.eventType === 'INSERT') {
@@ -586,6 +609,7 @@ class ApiService {
     }
 
     saveToStorage(USERS_KEY, this.usersCache);
+    this.notifyUserChange(updatedUser);
 
     // Sync to Supabase
     try {
@@ -602,6 +626,7 @@ class ApiService {
     this.usersCache = this.usersCache.filter(u => u.id !== id);
     delete this.credentials[id];
     saveToStorage(USERS_KEY, this.usersCache);
+    this.notifyUserChange();
 
     try {
       await supabase.from('users').delete().eq('id', id);
@@ -618,6 +643,32 @@ class ApiService {
       statusUpdatedAt: new Date().toISOString(),
       ...(status === 'BLOCKED' || status === 'SUSPENDED' || status === 'INACTIVE' ? { isOnline: false } : {})
     });
+  }
+
+  notifyUserChange(user?: User) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('hc_users_updated', { detail: user }));
+    }
+  }
+
+  subscribeToUsers(callback: (users: User[]) => void): () => void {
+    const handler = () => {
+      this.getUsers().then(callback);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('hc_users_updated', handler);
+      window.addEventListener('storage', (e) => {
+        if (e.key === USERS_KEY) handler();
+      });
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('hc_users_updated', handler);
+        window.removeEventListener('storage', handler);
+      }
+    };
   }
 
   async getOrders(): Promise<Order[]> {

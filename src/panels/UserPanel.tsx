@@ -34,6 +34,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../services/api';
 import PhonePeCheckoutModal from '../components/PhonePeCheckoutModal';
 import { CancelBookingModal } from '../components/CancelBookingModal';
+import ActiveChefsWidget from '../components/ActiveChefsWidget';
 import { 
   COMPANY_WHATSAPP_NUMBER, 
   getCustomerToChefWhatsAppUrl, 
@@ -391,6 +392,36 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
          <div className="absolute right-0 top-0 h-full w-1/2 bg-[url('https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&q=80&w=1000')] bg-cover bg-center brightness-75 hide-on-mobile opacity-50" />
       </section>
 
+      {/* Registered User Profile Info Bar */}
+      <div className="bg-white rounded-3xl p-4 md:p-5 border border-red-100/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-red-600 to-red-500 text-white flex items-center justify-center font-black text-lg shadow-md shadow-red-600/20 flex-shrink-0">
+            {currentUser.name?.slice(0, 1) || 'U'}
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-black text-gray-900 text-sm md:text-base">
+                {currentUser.name} {currentUser.surname}
+              </span>
+              <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase rounded-full flex items-center gap-1">
+                <CheckCircle2 size={11} /> Registered User
+              </span>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5 flex-wrap">
+              <span>Code: <strong className="text-red-600 font-mono">#{currentUser.customerCode || currentUser.id.slice(-6).toUpperCase()}</strong></span>
+              <span>•</span>
+              <span>Phone: <strong className="text-gray-800">{currentUser.phone || currentUser.whatsapp || 'Registered'}</strong></span>
+              <span>•</span>
+              <span className="text-gray-400">📍 Lucknow Resident</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <ActiveChefsWidget variant="compact" />
+        </div>
+      </div>
+
       {/* Main Nav */}
       <div className="flex border-b border-gray-200 overflow-x-auto whitespace-nowrap scrollbar-none">
          {[
@@ -416,50 +447,61 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
 
       <AnimatePresence mode="wait">
         {activeTab === 'book' ? (
-          <motion.div key="book-tab" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6 md:space-y-12">
+          <motion.div key="book-tab" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6 md:space-y-8">
+             {/* Live Active Chefs Banner */}
+             <ActiveChefsWidget />
+
              <div className="flex flex-col md:flex-row gap-4">
                 <button 
                   onClick={() => { setOrderType('DAILY'); setSelectedItems([]); }}
                   className={cn(
                     "flex-1 p-5 md:p-8 rounded-3xl md:rounded-[2.5rem] border-2 transition-all text-left group",
-                    orderType === 'DAILY' ? "border-red-600 bg-red-50/50" : "border-gray-100 bg-white"
+                    orderType === 'DAILY' ? "border-emerald-600 bg-emerald-50/60 shadow-lg shadow-emerald-600/10" : "border-gray-100 bg-white hover:border-emerald-200"
                   )}
                 >
-                   <div className={cn("w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center mb-4 transition-all", orderType === 'DAILY' ? "bg-red-600 text-white" : "bg-gray-100 text-gray-400 group-hover:bg-red-100 group-hover:text-red-600")}>
+                   <div className={cn("w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center mb-4 transition-all", orderType === 'DAILY' ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100")}>
                       <Clock size={24} />
                    </div>
-                   <h3 className="text-lg md:text-xl font-black">Daily Meals</h3>
-                   <p className="text-xs md:text-sm font-medium text-gray-400 mt-2">Home cooked veg meals for daily needs. Rs. 3/min.</p>
+                   <div className="flex items-center gap-2">
+                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                     <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">100% Pure Veg</span>
+                   </div>
+                   <h3 className="text-lg md:text-xl font-black text-gray-900 mt-1">Daily Home Meals</h3>
+                   <p className="text-xs md:text-sm font-medium text-gray-500 mt-1.5">Home cooked veg meals for daily needs. ₹3 per minute.</p>
                 </button>
                 <button 
                   onClick={() => { setOrderType('PARTY'); setSelectedItems([]); }}
                   className={cn(
                     "flex-1 p-5 md:p-8 rounded-3xl md:rounded-[2.5rem] border-2 transition-all text-left group",
-                    orderType === 'PARTY' ? "border-purple-500 bg-purple-50/50" : "border-gray-100 bg-white"
+                    orderType === 'PARTY' ? "border-red-600 bg-red-50/60 shadow-lg shadow-red-600/10" : "border-gray-100 bg-white hover:border-red-200"
                   )}
                 >
-                   <div className={cn("w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center mb-4 transition-all", orderType === 'PARTY' ? "bg-purple-500 text-white" : "bg-gray-100 text-gray-400 group-hover:bg-purple-100 group-hover:text-purple-500")}>
+                   <div className={cn("w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center mb-4 transition-all", orderType === 'PARTY' ? "bg-red-600 text-white" : "bg-red-50 text-red-600 group-hover:bg-red-100")}>
                       <TrendingUp size={24} />
                    </div>
-                   <h3 className="text-lg md:text-xl font-black">Party Special</h3>
-                   <p className="text-xs md:text-sm font-medium text-gray-400 mt-2">Starters + Main + Dessert • Rs. 555 Per Plate</p>
+                   <div className="flex items-center gap-2">
+                     <span className="w-2 h-2 rounded-full bg-red-500" />
+                     <span className="text-[10px] font-black uppercase tracking-wider text-red-700">Grand Feast</span>
+                   </div>
+                   <h3 className="text-lg md:text-xl font-black text-gray-900 mt-1">Party Special Menu</h3>
+                   <p className="text-xs md:text-sm font-medium text-gray-500 mt-1.5">Starters + Main Course + Dessert • ₹555 Per Plate</p>
                    {orderType === 'PARTY' && (
-                     <div className="mt-4 p-4 bg-white rounded-2xl border border-purple-100 flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Plates (Min 10)</span>
+                     <div className="mt-4 p-4 bg-white rounded-2xl border border-red-200 flex items-center justify-between shadow-sm">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Total Plates (Min 10)</span>
                         <div className="flex items-center gap-3">
                            <button 
                              onClick={(e) => { e.stopPropagation(); setPlateCount(Math.max(10, plateCount - 1)); }}
-                             className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center font-black"
+                             className="w-8 h-8 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 flex items-center justify-center font-black transition-colors"
                            >-</button>
-                           <span className="text-base md:text-lg font-black w-8 text-center">{plateCount}</span>
+                           <span className="text-base md:text-lg font-black w-8 text-center text-gray-900">{plateCount}</span>
                            <button 
                              onClick={(e) => { e.stopPropagation(); setPlateCount(plateCount + 1); }}
-                             className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center font-black"
+                             className="w-8 h-8 rounded-lg bg-red-600 text-white hover:bg-red-700 flex items-center justify-center font-black transition-colors"
                            >+</button>
                         </div>
                      </div>
                    )}
-                   <p className="text-[9px] font-bold text-red-500 mt-4 leading-relaxed uppercase tracking-widest italic bg-red-100/50 p-3 rounded-xl">
+                   <p className="text-[9px] font-bold text-red-700 mt-4 leading-relaxed uppercase tracking-widest italic bg-red-100/70 p-3 rounded-xl border border-red-200/80">
                       50% advance payment is required at the time of booking, and the full payment must be cleared one day before the event.
                    </p>
                 </button>
@@ -469,12 +511,14 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
                 <div className="lg:col-span-2 space-y-6 md:space-y-8">
                     {/* Daily Vegetable List Image Reference */}
                     {orderType === 'DAILY' && config?.dailyVegImageUrl && (
-                      <div className="bg-white p-4 md:p-8 rounded-3xl md:rounded-[2.5rem] border border-gray-100 shadow-sm mb-6 md:mb-8">
+                      <div className="bg-white p-4 md:p-8 rounded-3xl md:rounded-[2.5rem] border border-emerald-100 shadow-sm mb-6 md:mb-8">
                         <div className="flex items-center justify-between mb-4 gap-2">
-                            <h4 className="text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-400 italic truncate">Chef's Daily Vegetable Reference</h4>
-                            <a href={config.dailyVegImageUrl} target="_blank" rel="noopener noreferrer" className="text-red-600 text-[10px] font-black uppercase tracking-widest hover:underline flex-shrink-0">Full Image</a>
+                            <h4 className="text-[10px] md:text-xs font-black uppercase tracking-widest text-emerald-700 italic truncate flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500" /> Chef's Daily Vegetable Reference
+                            </h4>
+                            <a href={config.dailyVegImageUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-700 text-[10px] font-black uppercase tracking-widest hover:underline flex-shrink-0">Full Image</a>
                         </div>
-                        <div className="w-full h-48 md:h-80 rounded-2xl md:rounded-[2.5rem] overflow-hidden border-2 md:border-4 border-white shadow-xl">
+                        <div className="w-full h-48 md:h-80 rounded-2xl md:rounded-[2.5rem] overflow-hidden border-2 md:border-4 border-emerald-50 shadow-xl">
                             <img src={config.dailyVegImageUrl} className="w-full h-full object-contain bg-gray-50" alt="Daily Veg Reference" />
                         </div>
                       </div>
@@ -483,8 +527,11 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
                     <div className="flex items-center justify-between gap-2">
                        <h3 className="text-xl md:text-2xl font-black tracking-tight">{orderType === 'DAILY' ? 'Session Package' : 'Select Menu'}</h3>
                        <div className="flex gap-1 flex-shrink-0">
-                          <span className="px-2 md:px-3 py-1 bg-gray-100 rounded-full text-[9px] md:text-[10px] font-black uppercase text-gray-500">
-                             {orderType === 'PARTY' ? `${selectedItems.length} Selected` : 'Unlimited Choice'}
+                          <span className={cn(
+                            "px-2.5 md:px-3.5 py-1 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-wider",
+                            orderType === 'PARTY' ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          )}>
+                             {orderType === 'PARTY' ? `${selectedItems.length} Selected` : 'Unlimited Daily Choice'}
                           </span>
                        </div>
                     </div>
@@ -492,12 +539,14 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
                    {orderType === 'PARTY' ? (
                      <div className="space-y-6 md:space-y-10">
                         {config?.partyMenuImageUrl && (
-                          <div className="bg-white p-4 md:p-8 rounded-3xl md:rounded-[2.5rem] border border-gray-100 shadow-sm mt-4 md:mt-8 mb-6 md:mb-8 group">
+                          <div className="bg-white p-4 md:p-8 rounded-3xl md:rounded-[2.5rem] border border-red-100 shadow-sm mt-4 md:mt-8 mb-6 md:mb-8 group">
                             <div className="flex items-center justify-between mb-4 gap-2">
-                                <h4 className="text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-400 italic truncate">Reference Party Menu</h4>
+                                <h4 className="text-[10px] md:text-xs font-black uppercase tracking-widest text-red-700 italic truncate flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-red-500" /> Reference Party Menu
+                                </h4>
                                 <a href={config.partyMenuImageUrl} target="_blank" rel="noopener noreferrer" className="text-red-600 text-[10px] font-black uppercase tracking-widest hover:underline flex-shrink-0">Full Image</a>
                             </div>
-                            <div className="w-full h-48 md:h-80 rounded-2xl md:rounded-[2.5rem] overflow-hidden border-2 md:border-4 border-white shadow-xl">
+                            <div className="w-full h-48 md:h-80 rounded-2xl md:rounded-[2.5rem] overflow-hidden border-2 md:border-4 border-red-50 shadow-xl">
                                 <img src={config.partyMenuImageUrl} className="w-full h-full object-contain bg-gray-50" alt="Party Menu Reference" />
                             </div>
                           </div>
@@ -510,8 +559,8 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
                           return (
                             <div key={cat.name} className="space-y-4">
                                <div className="flex justify-between items-end">
-                                  <h4 className="text-[10px] font-black uppercase tracking-widest text-purple-600 flex items-center gap-2">
-                                     <div className="w-1.5 h-1.5 rounded-full bg-purple-500" /> {cat.name}
+                                  <h4 className="text-[10px] font-black uppercase tracking-widest text-red-600 flex items-center gap-2">
+                                     <div className="w-1.5 h-1.5 rounded-full bg-red-500" /> {cat.name}
                                   </h4>
                                   <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Select Items</span>
                                </div>
@@ -526,13 +575,13 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
                                           onClick={() => toggleItem(item)}
                                           className={cn(
                                             "p-5 rounded-3xl border-2 text-left transition-all relative overflow-hidden",
-                                            isSelected ? "border-purple-500 bg-purple-50/30" : "border-gray-50 bg-[#FBFBFB] hover:border-gray-200"
+                                            isSelected ? "border-red-600 bg-red-50/50 shadow-sm" : "border-gray-50 bg-[#FBFBFB] hover:border-red-200"
                                           )}
                                         >
                                            <div className="text-sm font-bold text-gray-900">{item.name}</div>
-                                           <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">{item.category}</div>
+                                           <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mt-1">{item.category}</div>
                                            {isSelected && (
-                                             <div className="absolute right-0 top-0 bg-purple-500 text-white p-2 rounded-bl-2xl">
+                                             <div className="absolute right-0 top-0 bg-red-600 text-white p-2 rounded-bl-2xl">
                                                 <CheckCircle2 size={16} />
                                              </div>
                                            )}
@@ -547,7 +596,7 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
                         {/* Any additional party items not strictly in standard category */}
                         {menu.filter(m => m.type === 'PARTY' && !PARTY_CATEGORIES.some(c => c.name === m.category)).length > 0 && (
                           <div className="space-y-4">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-purple-600">Other Specials</h4>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-red-600">Other Specials</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {menu.filter(m => m.type === 'PARTY' && !PARTY_CATEGORIES.some(c => c.name === m.category)).map(item => {
                                 const isSelected = selectedItems.some(i => i.id === item.id);
@@ -558,13 +607,13 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
                                     onClick={() => toggleItem(item)}
                                     className={cn(
                                       "p-5 rounded-3xl border-2 text-left transition-all relative overflow-hidden",
-                                      isSelected ? "border-purple-500 bg-purple-50/30" : "border-gray-50 bg-[#FBFBFB] hover:border-gray-200"
+                                      isSelected ? "border-red-600 bg-red-50/50 shadow-sm" : "border-gray-50 bg-[#FBFBFB] hover:border-red-200"
                                     )}
                                   >
                                     <div className="text-sm font-bold text-gray-900">{item.name}</div>
-                                    <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">{item.category}</div>
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mt-1">{item.category}</div>
                                     {isSelected && (
-                                      <div className="absolute right-0 top-0 bg-purple-500 text-white p-2 rounded-bl-2xl">
+                                      <div className="absolute right-0 top-0 bg-red-600 text-white p-2 rounded-bl-2xl">
                                         <CheckCircle2 size={16} />
                                       </div>
                                     )}
@@ -576,12 +625,12 @@ export default function UserPanel({ user, config }: { user: User, config: AppCon
                         )}
                      </div>
                    ) : (
-                     <div className="p-10 bg-red-50 rounded-[2.5rem] border border-red-100 flex flex-col items-center text-center space-y-4">
-                        <div className="w-16 h-16 bg-red-600 text-white rounded-full flex items-center justify-center shadow-xl">
+                     <div className="p-10 bg-emerald-50/80 rounded-[2.5rem] border border-emerald-200 flex flex-col items-center text-center space-y-4 shadow-sm">
+                        <div className="w-16 h-16 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-emerald-600/20">
                            <CheckCircle2 size={32} />
                         </div>
                         <h4 className="text-2xl font-black text-gray-900">Daily Package Activated</h4>
-                        <p className="text-sm font-medium text-gray-600 max-w-sm">No individual item selection required. Our chef will prepare a healthy daily meal session for you at ₹3 per minute.</p>
+                        <p className="text-sm font-medium text-emerald-900/80 max-w-sm">No individual item selection required. Our certified Lucknow chef will prepare healthy, delicious home-cooked meals for you at ₹3 per minute.</p>
                      </div>
                    )}
                 </div>

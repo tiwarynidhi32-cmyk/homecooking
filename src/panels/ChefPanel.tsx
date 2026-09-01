@@ -29,13 +29,18 @@ import {
   Copy,
   Share2,
   ExternalLink,
-  XCircle
+  XCircle,
+  Volume2,
+  VolumeX,
+  BellRing,
+  Sparkles
 } from 'lucide-react';
 import { User, Order, OrderStatus, AppConfig, WithdrawalRequest } from '../types';
 import { cn, formatCurrency } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../services/api';
+import { soundService } from '../services/soundService';
 import { CancelBookingModal } from '../components/CancelBookingModal';
 import { 
   getChefToCustomerWhatsAppUrl, 
@@ -55,6 +60,10 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
   const [otpInput, setOtpInput] = useState('');
   const [showPaymentQR, setShowPaymentQR] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  
+  // Sound Notification states
+  const [isMuted, setIsMuted] = useState<boolean>(soundService.getIsMuted());
+  const [isRinging, setIsRinging] = useState<boolean>(soundService.isRinging());
   
   // Wallet & Withdrawal states
   const [walletBalance, setWalletBalance] = useState(0);
@@ -106,9 +115,16 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
   useEffect(() => {
     loadData();
 
+    const unsubscribeSound = soundService.subscribe((ringing) => {
+      setIsRinging(ringing);
+    });
+
     // Subscribe to reactive real-time order updates across all tabs & events
     const unsubscribeOrders = api.subscribeToOrders((allOrders) => {
-      setOrders(allOrders.filter((o: Order) => o.status === OrderStatus.PENDING && !o.chefId));
+      const pendingUnassigned = allOrders.filter((o: Order) => o.status === OrderStatus.PENDING && !o.chefId);
+      const myAssignedPending = allOrders.filter((o: Order) => o.chefId === user.id && o.status === OrderStatus.PENDING);
+
+      setOrders(pendingUnassigned);
       setAllChefOrders(allOrders.filter((o: Order) => o.chefId === user.id));
       
       const myActive = allOrders.find((o: Order) => 
@@ -116,6 +132,15 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
         (o.status === OrderStatus.COOKING || o.status === OrderStatus.PENDING || o.status === OrderStatus.PAYMENT_PENDING)
       );
       setActiveOrder(myActive || null);
+
+      // Audible Alert Logic for Chef:
+      // If chef is online and there are bookings waiting (or assigned to chef) and chef is not actively cooking:
+      const shouldRing = isOnline && (pendingUnassigned.length > 0 || myAssignedPending.length > 0) && (!myActive || myActive.status === OrderStatus.PENDING);
+      if (shouldRing) {
+        soundService.startOrderRingtone();
+      } else {
+        soundService.stopOrderRingtone();
+      }
 
       // Recalculate earnings
       const myPaid = allOrders.filter((o: Order) => o.chefId === user.id && (o.status === OrderStatus.PAID || o.status === OrderStatus.COMPLETED));
@@ -136,6 +161,8 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
     return () => {
       unsubscribeOrders();
       unsubscribeWithdrawals();
+      unsubscribeSound();
+      soundService.stopOrderRingtone();
     };
   }, [user.id, isOnline, totalLifetimeEarnings]);
 
@@ -176,12 +203,17 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
   const fetchOrders = async () => {
     try {
       const data = await api.getOrders();
-      setOrders(data.filter((o: Order) => o.status === OrderStatus.PENDING && !o.chefId));
+      const pendingUnassigned = data.filter((o: Order) => o.status === OrderStatus.PENDING && !o.chefId);
+      setOrders(pendingUnassigned);
       const active = data.find((o: Order) => 
         o.chefId === user.id && 
         (o.status === OrderStatus.COOKING || o.status === OrderStatus.PENDING || o.status === OrderStatus.PAYMENT_PENDING)
       );
       setActiveOrder(active || null);
+
+      if (isOnline && pendingUnassigned.length > 0 && (!active || active.status === OrderStatus.PENDING)) {
+        soundService.startOrderRingtone();
+      }
     } catch (err) {
       console.warn("Failed to fetch orders", err);
     }
@@ -190,11 +222,27 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
   const toggleOnline = async () => {
     const nextStatus = !isOnline;
     setIsOnline(nextStatus);
+    if (!nextStatus) {
+      soundService.stopOrderRingtone();
+    } else {
+      if (orders.length > 0) {
+        soundService.startOrderRingtone();
+      }
+    }
     try {
       await api.updateUser(user.id, { isOnline: nextStatus });
     } catch (err) {
       console.warn("Failed to persist online status", err);
     }
+  };
+
+  const toggleSoundMute = () => {
+    const newMute = soundService.toggleMute();
+    setIsMuted(newMute);
+  };
+
+  const handleTestRingtone = () => {
+    soundService.testRingtone();
   };
 
   const acceptOrder = async (order: Order) => {
@@ -204,9 +252,14 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
         chefName: `${user.name} ${user.surname}`.trim(),
         chefPhone: user.phone || user.whatsapp
       });
+      soundService.playAcceptSound();
       setActiveOrder(updated);
       setJustAcceptedOrder(updated);
-      setOrders(prev => prev.filter(o => o.id !== order.id));
+      const remainingOrders = orders.filter(o => o.id !== order.id);
+      setOrders(remainingOrders);
+      if (remainingOrders.length === 0) {
+        soundService.stopOrderRingtone();
+      }
       setActiveTab('missions');
     } catch (err) {
       alert('Failed to accept order');
@@ -493,6 +546,58 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
         )}
       </AnimatePresence>
 
+      {/* Live Ringing Notification Alert for Chefs */}
+      <AnimatePresence>
+        {isRinging && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            className="bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white p-4 md:p-5 rounded-3xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 border-2 border-white/20 animate-pulse"
+          >
+            <div className="flex items-center gap-3.5 text-center sm:text-left">
+              <div className="w-12 h-12 rounded-2xl bg-white text-red-600 flex items-center justify-center font-black flex-shrink-0 shadow-lg animate-bounce">
+                <BellRing size={24} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 justify-center sm:justify-start">
+                  <span className="text-[10px] font-black uppercase tracking-widest bg-white/25 px-2.5 py-0.5 rounded-full">
+                    🔊 Audible Ringing Alert Active
+                  </span>
+                </div>
+                <h4 className="text-base md:text-lg font-black tracking-tight mt-0.5">
+                  New Booking Request Waiting in Lucknow!
+                </h4>
+                <p className="text-xs text-white/90 font-medium">
+                  Audible sound notification is ringing. Accept now to claim this mission.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('missions');
+                  if (orders.length > 0) {
+                    acceptOrder(orders[0]);
+                  }
+                }}
+                className="flex-1 sm:flex-initial h-11 px-5 bg-white text-red-700 hover:bg-white/90 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg transition-all active:scale-95 whitespace-nowrap cursor-pointer"
+              >
+                Accept 1st Booking
+              </button>
+              <button
+                type="button"
+                onClick={() => soundService.stopOrderRingtone()}
+                className="h-11 px-4 bg-black/30 hover:bg-black/40 text-white rounded-xl font-bold text-xs transition-all active:scale-95 whitespace-nowrap cursor-pointer"
+              >
+                Silence Ringtone
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Top Header & Navigation Tabs */}
       <div className="bg-white p-4 md:p-6 rounded-3xl md:rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
@@ -519,11 +624,36 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            {/* Sound Notification Control Pill */}
+            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200/80 p-1 rounded-2xl">
+              <button 
+                type="button"
+                onClick={toggleSoundMute}
+                title={isMuted ? "Sound is Muted - Click to Unmute" : "Audible Notification Sound is ON"}
+                className={cn(
+                  "px-3 py-2 rounded-xl font-black text-[11px] uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer",
+                  isMuted ? "bg-amber-100 text-amber-900 hover:bg-amber-200" : "bg-emerald-600 text-white hover:bg-emerald-700"
+                )}
+              >
+                {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} className={isRinging ? "animate-bounce" : ""} />}
+                <span>{isMuted ? 'Muted' : 'Sound ON'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleTestRingtone}
+                title="Test notification alert ringtone"
+                className="px-2.5 py-2 rounded-xl font-black text-[10px] uppercase tracking-wider text-gray-600 hover:bg-gray-200 transition-all flex items-center gap-1 cursor-pointer"
+              >
+                <Sparkles size={12} className="text-amber-500" />
+                <span>Test</span>
+              </button>
+            </div>
+
             <button 
               onClick={toggleOnline}
               className={cn(
-                "px-5 py-2.5 rounded-xl font-black text-xs tracking-wide transition-all text-center shadow-sm active:scale-95",
+                "px-5 py-2.5 rounded-xl font-black text-xs tracking-wide transition-all text-center shadow-sm active:scale-95 cursor-pointer",
                 isOnline ? "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200" : "bg-green-600 text-white hover:bg-green-700 shadow-green-500/20"
               )}
             >
@@ -890,17 +1020,30 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
                        <motion.div 
                          layout
                          key={order.id} 
-                         className="bg-white p-5 md:p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 hover:border-red-200 hover:shadow-md transition-all group"
+                         className={cn(
+                           "bg-white p-5 md:p-6 rounded-3xl border shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 transition-all group",
+                           isRinging 
+                             ? "border-red-500/80 shadow-lg shadow-red-500/10 ring-2 ring-red-500/20 bg-gradient-to-r from-red-50/40 via-white to-white" 
+                             : "border-gray-100 hover:border-red-200 hover:shadow-md"
+                         )}
                        >
                           <div className="flex items-start sm:items-center gap-4">
-                             <div className="w-14 h-14 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center font-black text-2xl group-hover:scale-110 transition-transform flex-shrink-0">
+                             <div className="w-14 h-14 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center font-black text-2xl group-hover:scale-110 transition-transform flex-shrink-0 relative">
                                  {order.type === 'PARTY' ? '🎉' : '🍱'}
+                                 {isRinging && (
+                                   <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-600 rounded-full border-2 border-white animate-ping" />
+                                 )}
                              </div>
                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-[10px] font-black uppercase tracking-widest text-red-500 bg-red-50 px-2 py-0.5 rounded-md">
                                     {order.type} BOOKING
                                   </span>
+                                  {isRinging && (
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md animate-pulse flex items-center gap-1">
+                                      <Volume2 size={10} /> Audible Alert Ringing
+                                    </span>
+                                  )}
                                   <span className="text-[10px] font-black text-gray-400">#{order.bookingId || order.id.slice(-6).toUpperCase()}</span>
                                 </div>
                                 <h4 className="font-bold text-base md:text-lg text-gray-900 leading-tight">
@@ -917,7 +1060,7 @@ export default function ChefPanel({ user, config }: { user: User, config: AppCon
                           </div>
                           <button 
                             onClick={() => acceptOrder(order)}
-                            className="w-full sm:w-auto bg-gray-950 text-white px-8 h-12 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-red-600 transition-all active:scale-95 text-xs uppercase tracking-widest shadow-md flex-shrink-0"
+                            className="w-full sm:w-auto bg-gray-950 text-white px-8 h-12 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-red-600 transition-all active:scale-95 text-xs uppercase tracking-widest shadow-md flex-shrink-0 cursor-pointer"
                           >
                              Accept Mission
                           </button>

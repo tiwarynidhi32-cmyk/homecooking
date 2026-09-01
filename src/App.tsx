@@ -22,6 +22,7 @@ import AppLogo from './components/AppLogo';
 import socket from './services/socket';
 import { cn } from './lib/utils';
 import { api } from './services/api';
+import { soundService } from './services/soundService';
 import ApkDownloadModal from './components/ApkDownloadModal';
 
 import LandingPage from './components/LandingPage';
@@ -88,8 +89,7 @@ export default function App() {
       const handleNewOrder = (order: any) => {
         if (user.role === UserRole.CHEF && user.isOnline) {
           setNotifications(prev => [{ id: Date.now(), message: 'New order available!', data: order }, ...prev]);
-          const audio = new Audio('/notification.mp3'); // Fallback to silent if missing
-          audio.play().catch(() => {});
+          soundService.startOrderRingtone();
         }
       };
 
@@ -100,13 +100,15 @@ export default function App() {
            let message = `Order update: ${order.status.replace('_', ' ')}`;
            if (order.status === 'PAYMENT_PENDING' && user.role === UserRole.USER) {
               message = 'Cooking session ended. Please proceed to payment.';
+              soundService.playAcceptSound();
            } else if (order.status === 'PAID' && user.role === UserRole.CHEF) {
               message = 'Payment received! Session completed.';
+              soundService.playAcceptSound();
+           } else {
+              soundService.testRingtone();
            }
            
            setNotifications(prev => [{ id: Date.now(), message, data: order }, ...prev]);
-           const audio = new Audio('/notification.mp3');
-           audio.play().catch(() => {});
         }
       };
 

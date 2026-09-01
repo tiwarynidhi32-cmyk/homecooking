@@ -105,16 +105,16 @@ class SoundService {
 
       const now = ctx.currentTime;
 
-      // Bell / Marimba harmonic frequencies
+      // Bell / Marimba harmonic frequencies - boosted gain for high audibility in noisy kitchens / mobile devices
       const notes = [
-        { freq: 587.33, start: 0.0, dur: 0.22, gain: 0.35 }, // D5
-        { freq: 739.99, start: 0.16, dur: 0.22, gain: 0.4 }, // F#5
-        { freq: 880.00, start: 0.32, dur: 0.25, gain: 0.45 }, // A5
-        { freq: 1174.66, start: 0.48, dur: 0.55, gain: 0.5 }, // D6
+        { freq: 587.33, start: 0.0, dur: 0.22, gain: 0.45 }, // D5
+        { freq: 739.99, start: 0.16, dur: 0.22, gain: 0.50 }, // F#5
+        { freq: 880.00, start: 0.32, dur: 0.25, gain: 0.55 }, // A5
+        { freq: 1174.66, start: 0.48, dur: 0.55, gain: 0.65 }, // D6
         
         // Echo accent pulse
-        { freq: 880.00, start: 0.85, dur: 0.2, gain: 0.35 },
-        { freq: 1174.66, start: 1.02, dur: 0.5, gain: 0.45 },
+        { freq: 880.00, start: 0.85, dur: 0.2, gain: 0.45 },
+        { freq: 1174.66, start: 1.02, dur: 0.5, gain: 0.60 },
       ];
 
       notes.forEach(({ freq, start, dur, gain: noteGain }) => {

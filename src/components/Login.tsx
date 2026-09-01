@@ -135,25 +135,25 @@ export default function Login({ onLogin, config }: LoginProps) {
             </div>
 
             {/* Android APK Download Card on Left Panel */}
-            <div className="p-4 bg-gradient-to-r from-red-600/30 to-amber-500/20 backdrop-blur-md rounded-2xl border border-white/15 space-y-3">
+            <div className="p-4 bg-gradient-to-r from-red-600/40 via-red-950/40 to-emerald-950/40 backdrop-blur-md rounded-2xl border border-emerald-500/20 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-white">
-                  <Smartphone size={16} className="text-amber-400" />
+                  <Smartphone size={16} className="text-emerald-400" />
                   <span className="text-[11px] font-black uppercase tracking-wider">HC Home Cooking App</span>
                 </div>
-                <span className="text-[9px] font-mono font-black text-amber-300 bg-black/40 px-2 py-0.5 rounded-full border border-amber-300/30">
+                <span className="text-[9px] font-mono font-black text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-400/40">
                   APK v2.4
                 </span>
               </div>
-              <p className="text-[11px] text-white/70 leading-tight font-medium">
-                Install direct on Android phone for fastest instant booking & live chef tracking.
+              <p className="text-[11px] text-white/80 leading-tight font-medium">
+                Install direct on Android phone for fastest instant booking & live chef tracking in Lucknow.
               </p>
               <button
                 type="button"
                 onClick={() => setShowApkModal(true)}
-                className="w-full h-10 bg-white hover:bg-amber-50 text-gray-900 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
+                className="w-full h-10 bg-emerald-500 hover:bg-emerald-400 text-gray-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
               >
-                <Download size={14} className="text-red-600" /> Download APK
+                <Download size={14} className="text-gray-950" /> Download APK
               </button>
             </div>
           </div>
@@ -164,20 +164,20 @@ export default function Login({ onLogin, config }: LoginProps) {
           <div className="max-w-md mx-auto w-full flex-1 flex flex-col justify-center">
             
             {/* Top Quick APK Banner for Mobile */}
-            <div className="mb-6 p-3 bg-gradient-to-r from-red-50 via-amber-50 to-red-50 border border-red-200/80 rounded-2xl flex items-center justify-between gap-3 shadow-sm">
+            <div className="mb-6 p-3 bg-gradient-to-r from-red-50 via-emerald-50 to-red-50 border border-emerald-200/80 rounded-2xl flex items-center justify-between gap-3 shadow-sm">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-red-600 text-white rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                <div className="w-8 h-8 bg-gradient-to-br from-red-600 to-rose-700 text-white rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
                   <Smartphone size={16} />
                 </div>
                 <div>
                   <p className="text-[11px] font-black text-gray-900 leading-tight">HC Home Cooking Mobile App</p>
-                  <p className="text-[9px] text-gray-500 font-bold">Android APK (v2.4.2) • Direct Install</p>
+                  <p className="text-[9px] text-emerald-700 font-bold">Android APK (v2.4.2) • Direct Install</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowApkModal(true)}
-                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center gap-1 shadow-sm active:scale-95 transition-all flex-shrink-0"
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center gap-1 shadow-sm active:scale-95 transition-all flex-shrink-0"
               >
                 <Download size={12} /> Get APK
               </button>
@@ -374,40 +374,40 @@ export default function Login({ onLogin, config }: LoginProps) {
 
       {/* Modern Footer Badges */}
       <div className="max-w-[1200px] w-full mt-12 grid grid-cols-2 md:grid-cols-4 gap-6 px-4">
-        <div className="flex items-center gap-4 p-5 bg-white/50 backdrop-blur-sm rounded-3xl border border-gray-100 shadow-sm">
-          <div className="w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center flex-shrink-0">
+        <div className="flex items-center gap-4 p-5 bg-white/70 backdrop-blur-sm rounded-3xl border border-emerald-100/80 shadow-sm">
+          <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0 border border-emerald-200">
             <ShieldCheck size={20} />
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">OTP Verified</p>
-            <p className="text-[9px] font-bold text-gray-400">100% Secure Access</p>
+            <p className="text-[9px] font-bold text-emerald-700">100% Secure Access</p>
           </div>
         </div>
-        <div className="flex items-center gap-4 p-5 bg-white/50 backdrop-blur-sm rounded-3xl border border-gray-100 shadow-sm">
-          <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+        <div className="flex items-center gap-4 p-5 bg-white/70 backdrop-blur-sm rounded-3xl border border-red-100/80 shadow-sm">
+          <div className="w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center flex-shrink-0 border border-red-200">
             <QrCode size={20} />
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">Digital Payments</p>
-            <p className="text-[9px] font-bold text-gray-400">Instant & Safe</p>
+            <p className="text-[9px] font-bold text-red-700">Instant & Safe UPI</p>
           </div>
         </div>
-        <div className="flex items-center gap-4 p-5 bg-white/50 backdrop-blur-sm rounded-3xl border border-gray-100 shadow-sm">
-          <div className="w-10 h-10 bg-green-50 text-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
+        <div className="flex items-center gap-4 p-5 bg-white/70 backdrop-blur-sm rounded-3xl border border-emerald-100/80 shadow-sm">
+          <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0 border border-emerald-200">
             <Star size={20} />
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">Rated Chefs</p>
-            <p className="text-[9px] font-bold text-gray-400">Verified Reviews</p>
+            <p className="text-[9px] font-bold text-emerald-700">Verified Lucknow Cooks</p>
           </div>
         </div>
-        <div className="flex items-center gap-4 p-5 bg-white/50 backdrop-blur-sm rounded-3xl border border-gray-100 shadow-sm">
-          <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+        <div className="flex items-center gap-4 p-5 bg-white/70 backdrop-blur-sm rounded-3xl border border-red-100/80 shadow-sm">
+          <div className="w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center flex-shrink-0 border border-red-200">
             <Headphones size={20} />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">Human Support</p>
-            <p className="text-[9px] font-bold text-gray-400">Ready to Assist</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-900">Live Support</p>
+            <p className="text-[9px] font-bold text-red-700">Ready to Assist</p>
           </div>
         </div>
       </div>

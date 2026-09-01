@@ -50,7 +50,8 @@ import {
   ExternalLink,
   ArrowUpRight,
   DollarSign,
-  Wallet
+  Wallet,
+  Flame
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { User, UserRole, AppConfig, MenuItem, WithdrawalRequest, Order, OrderType, OrderStatus } from '../types';
@@ -116,6 +117,11 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
 
   const [chefStatusUser, setChefStatusUser] = useState<User | null>(null);
   const [isChefStatusOpen, setIsChefStatusOpen] = useState(false);
+
+  const [chefOnlineFilter, setChefOnlineFilter] = useState<'ALL' | 'ONLINE' | 'COOKING' | 'OFFLINE'>('ALL');
+  const [chefSearchQuery, setChefSearchQuery] = useState<string>('');
+  const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'USER' | 'CHEF' | 'MANAGER' | 'ADMIN'>('ALL');
+  const [userSearchQuery, setUserSearchQuery] = useState<string>('');
 
   const [userEditModalUser, setUserEditModalUser] = useState<User | null>(null);
   const [isUserEditOpen, setIsUserEditOpen] = useState(false);
@@ -878,6 +884,79 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                 </motion.div>
               )}
 
+              {/* Live Chefs Operational Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <button
+                  type="button"
+                  onClick={() => setChefOnlineFilter('ALL')}
+                  className={cn(
+                    "p-5 rounded-3xl border text-left transition-all",
+                    chefOnlineFilter === 'ALL' ? "bg-white border-red-500 shadow-md ring-2 ring-red-500/20" : "bg-white border-gray-100 hover:border-gray-300"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Total Chefs</span>
+                    <ChefHat size={16} className="text-gray-400" />
+                  </div>
+                  <div className="text-2xl font-black text-gray-900 mt-2">{chefs.length}</div>
+                  <div className="text-[10px] text-gray-500 font-bold mt-0.5">Registered Partners</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setChefOnlineFilter('ONLINE')}
+                  className={cn(
+                    "p-5 rounded-3xl border text-left transition-all",
+                    chefOnlineFilter === 'ONLINE' ? "bg-emerald-50 border-emerald-500 shadow-md ring-2 ring-emerald-500/20" : "bg-white border-gray-100 hover:border-emerald-200"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Ready to Accept</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  </div>
+                  <div className="text-2xl font-black text-emerald-900 mt-2">
+                    {chefs.filter(c => c.isOnline && !orders.some(o => o.chefId === c.id && o.status === OrderStatus.COOKING)).length}
+                  </div>
+                  <div className="text-[10px] text-emerald-700 font-bold mt-0.5">Online & Available</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setChefOnlineFilter('COOKING')}
+                  className={cn(
+                    "p-5 rounded-3xl border text-left transition-all",
+                    chefOnlineFilter === 'COOKING' ? "bg-amber-50 border-amber-500 shadow-md ring-2 ring-amber-500/20" : "bg-white border-gray-100 hover:border-amber-200"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-700">Cooking Now</span>
+                    <Flame size={16} className="text-amber-500" />
+                  </div>
+                  <div className="text-2xl font-black text-amber-900 mt-2">
+                    {chefs.filter(c => c.isOnline && orders.some(o => o.chefId === c.id && o.status === OrderStatus.COOKING)).length}
+                  </div>
+                  <div className="text-[10px] text-amber-700 font-bold mt-0.5">Live Cooking Sessions</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setChefOnlineFilter('OFFLINE')}
+                  className={cn(
+                    "p-5 rounded-3xl border text-left transition-all",
+                    chefOnlineFilter === 'OFFLINE' ? "bg-gray-100 border-gray-400 shadow-md ring-2 ring-gray-400/20" : "bg-white border-gray-100 hover:border-gray-300"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-500">Offline</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-gray-400" />
+                  </div>
+                  <div className="text-2xl font-black text-gray-700 mt-2">
+                    {chefs.filter(c => !c.isOnline).length}
+                  </div>
+                  <div className="text-[10px] text-gray-500 font-bold mt-0.5">Offline / Inactive</div>
+                </button>
+              </div>
+
               <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
                 <div className="p-8 flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-[#FAFAFA] border-b border-gray-100">
                   <div>
@@ -901,6 +980,65 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                     </button>
                   </div>
                 </div>
+
+                {/* Chef Filter & Search Bar */}
+                <div className="p-4 sm:px-8 bg-white border-b border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
+                    <button
+                      type="button"
+                      onClick={() => setChefOnlineFilter('ALL')}
+                      className={cn(
+                        "px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                        chefOnlineFilter === 'ALL' ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      )}
+                    >
+                      All ({chefs.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChefOnlineFilter('ONLINE')}
+                      className={cn(
+                        "px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all",
+                        chefOnlineFilter === 'ONLINE' ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      )}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      Ready to Accept ({chefs.filter(c => c.isOnline && !orders.some(o => o.chefId === c.id && o.status === OrderStatus.COOKING)).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChefOnlineFilter('COOKING')}
+                      className={cn(
+                        "px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all",
+                        chefOnlineFilter === 'COOKING' ? "bg-amber-600 text-white" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                      )}
+                    >
+                      <Flame size={12} className="text-amber-500" />
+                      Cooking Now ({chefs.filter(c => c.isOnline && orders.some(o => o.chefId === c.id && o.status === OrderStatus.COOKING)).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChefOnlineFilter('OFFLINE')}
+                      className={cn(
+                        "px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                        chefOnlineFilter === 'OFFLINE' ? "bg-gray-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                      )}
+                    >
+                      Offline ({chefs.filter(c => !c.isOnline).length})
+                    </button>
+                  </div>
+
+                  <div className="w-full sm:w-64">
+                    <input
+                      type="text"
+                      placeholder="Search chef by name, phone, ID..."
+                      value={chefSearchQuery}
+                      onChange={(e) => setChefSearchQuery(e.target.value)}
+                      className="w-full h-10 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-bold outline-none focus:border-red-600"
+                    />
+                  </div>
+                </div>
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
@@ -914,11 +1052,32 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {chefs.map((chef) => {
+                      {chefs
+                        .filter((chef) => {
+                          const isCooking = orders.some(o => o.chefId === chef.id && o.status === OrderStatus.COOKING);
+                          if (chefOnlineFilter === 'ONLINE') {
+                            if (!chef.isOnline || isCooking) return false;
+                          } else if (chefOnlineFilter === 'COOKING') {
+                            if (!chef.isOnline || !isCooking) return false;
+                          } else if (chefOnlineFilter === 'OFFLINE') {
+                            if (chef.isOnline) return false;
+                          }
+                          if (chefSearchQuery.trim()) {
+                            const q = chefSearchQuery.toLowerCase();
+                            const matchesName = `${chef.name} ${chef.surname}`.toLowerCase().includes(q);
+                            const matchesPhone = (chef.phone || chef.whatsapp || '').includes(q);
+                            const matchesId = chef.id.toLowerCase().includes(q);
+                            const matchesEmail = chef.email.toLowerCase().includes(q);
+                            if (!matchesName && !matchesPhone && !matchesId && !matchesEmail) return false;
+                          }
+                          return true;
+                        })
+                        .map((chef) => {
                         const docCount = chef.userDocuments?.length || (chef.idProof ? 1 : 0) + (chef.fssaiCert ? 1 : 0);
                         const chefStatus = chef.status || 'ACTIVE';
                         const chefOrders = orders.filter(o => o.chefId === chef.id && (o.status === OrderStatus.PAID || o.status === OrderStatus.COMPLETED));
                         const totalChefEarnings = chefOrders.reduce((sum, o) => sum + (o.commissionChef || 0), 0);
+                        const isCurrentlyCooking = orders.some(o => o.chefId === chef.id && o.status === OrderStatus.COOKING);
 
                         return (
                           <tr key={chef.id} className="hover:bg-red-50/20 transition-colors">
@@ -933,7 +1092,7 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                                    )}
                                    <span className={cn(
                                      "w-3 h-3 rounded-full absolute -top-0.5 -right-0.5 border-2 border-white",
-                                     chef.isOnline ? "bg-green-500" : "bg-gray-300"
+                                     chef.isOnline ? (isCurrentlyCooking ? "bg-amber-500 animate-ping" : "bg-green-500") : "bg-gray-300"
                                    )} />
                                 </div>
                                 <div>
@@ -946,12 +1105,28 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                                      )}>
                                        {chef.isVerified ? 'Verified' : 'Pending KYC'}
                                      </span>
-                                     <span className={cn(
-                                       "px-2 py-0.5 rounded text-[8px] font-black uppercase",
-                                       chef.isOnline ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"
-                                     )}>
-                                       {chef.isOnline ? 'Online' : 'Offline'}
-                                     </span>
+                                     
+                                     {/* 1-Click Online Toggle Button */}
+                                     <button
+                                       type="button"
+                                       onClick={async () => {
+                                         try {
+                                           await api.updateUser(chef.id, { isOnline: !chef.isOnline });
+                                         } catch (e) {
+                                           alert('Failed to update chef status');
+                                         }
+                                       }}
+                                       title="Click to toggle Online/Offline"
+                                       className={cn(
+                                         "px-2 py-0.5 rounded text-[8px] font-black uppercase flex items-center gap-1 transition-transform active:scale-95 cursor-pointer",
+                                         chef.isOnline 
+                                           ? (isCurrentlyCooking ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200") 
+                                           : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                       )}
+                                     >
+                                       <span className={cn("w-1.5 h-1.5 rounded-full", chef.isOnline ? (isCurrentlyCooking ? "bg-amber-500" : "bg-emerald-500") : "bg-gray-400")} />
+                                       {chef.isOnline ? (isCurrentlyCooking ? 'Cooking' : 'Online') : 'Offline'}
+                                     </button>
                                    </div>
                                 </div>
                               </div>
@@ -1712,6 +1887,63 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                      </span>
                    </div>
                 </div>
+
+                {/* Filter and Search Bar for Users */}
+                <div className="p-4 sm:px-8 bg-white border-b border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
+                    <button
+                      type="button"
+                      onClick={() => setUserRoleFilter('ALL')}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                        userRoleFilter === 'ALL' ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      )}
+                    >
+                      All Users ({allUsers.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUserRoleFilter('USER')}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                        userRoleFilter === 'USER' ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                      )}
+                    >
+                      Customers ({allUsers.filter(u => u.role === UserRole.USER).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUserRoleFilter('CHEF')}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                        userRoleFilter === 'CHEF' ? "bg-red-600 text-white" : "bg-red-50 text-red-700 hover:bg-red-100"
+                      )}
+                    >
+                      Chefs ({allUsers.filter(u => u.role === UserRole.CHEF).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUserRoleFilter('ADMIN')}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                        userRoleFilter === 'ADMIN' ? "bg-purple-600 text-white" : "bg-purple-50 text-purple-700 hover:bg-purple-100"
+                      )}
+                    >
+                      Admins ({allUsers.filter(u => u.role === UserRole.ADMIN).length})
+                    </button>
+                  </div>
+
+                  <div className="w-full sm:w-72">
+                    <input
+                      type="text"
+                      placeholder="Search user by name, phone, code..."
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      className="w-full h-10 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-bold outline-none focus:border-red-600"
+                    />
+                  </div>
+                </div>
+
                 <div className="overflow-x-auto">
                    <table className="w-full text-left">
                       <thead>
@@ -1726,7 +1958,20 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                          </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
-                         {allUsers.map(u => {
+                         {allUsers
+                           .filter(u => {
+                             if (userRoleFilter !== 'ALL' && u.role !== userRoleFilter) return false;
+                             if (userSearchQuery.trim()) {
+                               const q = userSearchQuery.toLowerCase();
+                               const matchesName = `${u.name} ${u.surname}`.toLowerCase().includes(q);
+                               const matchesPhone = (u.phone || u.whatsapp || '').includes(q);
+                               const matchesEmail = u.email.toLowerCase().includes(q);
+                               const matchesCode = (u.customerCode || '').toLowerCase().includes(q);
+                               if (!matchesName && !matchesPhone && !matchesEmail && !matchesCode) return false;
+                             }
+                             return true;
+                           })
+                           .map(u => {
                            const userOrders = orders.filter(o => o.userId === u.id || o.userEmail === u.email);
                            const docCount = u.userDocuments?.length || (u.idProof ? 1 : 0);
                            const userStatus = u.status || 'ACTIVE';
@@ -1734,9 +1979,20 @@ export default function AdminPanel({ user, config: initialConfig, onUpdateConfig
                            return (
                             <tr key={u.id} className="hover:bg-gray-50/60 transition-colors">
                                <td className="px-6 py-4">
-                                  <div className="font-black text-gray-900 leading-tight text-sm">{u.name} {u.surname}</div>
-                                  <div className="text-[10px] text-gray-400 font-mono mt-0.5">ID: #{u.id}</div>
-                                  <div className="text-[10px] text-gray-400 font-medium">{u.email}</div>
+                                  <div className="flex items-center gap-2.5">
+                                     <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-black text-xs text-gray-600 relative flex-shrink-0">
+                                        {u.name?.charAt(0).toUpperCase() || 'U'}
+                                        <span className={cn(
+                                          "w-2.5 h-2.5 rounded-full absolute -bottom-0.5 -right-0.5 border border-white",
+                                          u.isOnline ? "bg-green-500" : "bg-gray-300"
+                                        )} />
+                                     </div>
+                                     <div>
+                                        <div className="font-black text-gray-900 leading-tight text-sm">{u.name} {u.surname}</div>
+                                        <div className="text-[10px] text-gray-400 font-mono mt-0.5">ID: #{u.id}</div>
+                                        <div className="text-[10px] text-gray-400 font-medium">{u.email}</div>
+                                     </div>
+                                  </div>
                                </td>
                                <td className="px-6 py-4">
                                   <div className="space-y-1">

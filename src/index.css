@@ -7,7 +7,31 @@
 }
 
 @layer base {
-  body {
-    @apply antialiased;
+  ::selection {
+    background-color: rgba(220, 38, 38, 0.15);
+    color: #991b1b;
   }
+
+  body {
+    @apply antialiased text-gray-900;
+  }
+}
+
+/* Custom Red & Green scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ef4444;
 }
