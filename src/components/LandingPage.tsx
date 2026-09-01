@@ -65,10 +65,10 @@ export default function LandingPage({ config, onExplore }: { config: AppConfig |
                <button 
                   onClick={() => setShowApkModal(true)}
                   className="flex items-center gap-1.5 px-3.5 h-11 rounded-xl text-[11px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-all active:scale-95 shadow-sm"
-                  title="Download Android APK"
+                  title="Install Mobile App"
                >
                   <Smartphone size={15} className="text-emerald-600" />
-                  <span>Get APK</span>
+                  <span>Install App</span>
                </button>
 
                <button 
@@ -516,7 +516,7 @@ export default function LandingPage({ config, onExplore }: { config: AppConfig |
                   onClick={() => setShowApkModal(true)}
                   className="text-[10px] font-black uppercase tracking-widest text-red-600 hover:underline flex items-center gap-1"
                >
-                  <Smartphone size={12} /> Download Android APK
+                  <Smartphone size={12} /> Install Mobile App
                </button>
             </div>
             <div className="flex flex-col items-center md:items-end gap-1.5 text-center md:text-right">

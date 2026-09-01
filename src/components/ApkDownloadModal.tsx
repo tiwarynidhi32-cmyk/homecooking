@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Download, 
   Smartphone, 
   ShieldCheck, 
   CheckCircle2, 
@@ -9,11 +8,11 @@ import {
   QrCode, 
   Database, 
   RefreshCw, 
-  Wifi, 
-  WifiOff, 
   Copy, 
-  ExternalLink,
-  Check
+  Check,
+  Zap,
+  Sparkles,
+  Download
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { AppConfig } from '../types';
@@ -27,29 +26,16 @@ interface ApkDownloadModalProps {
 }
 
 export default function ApkDownloadModal({ isOpen, onClose, config }: ApkDownloadModalProps) {
-  const [downloading, setDownloading] = useState(false);
-  const [downloadCompleted, setDownloadCompleted] = useState(false);
-  const [activeTab, setActiveTab] = useState<'pwa' | 'apk' | 'dbsync'>('pwa');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dbTestResult, setDbTestResult] = useState<{ connected: boolean; tables: any; error?: string } | null>(null);
 
-  const currentUrl = typeof window !== 'undefined' ? window.location.origin : 'https://ais-dev-ipcmjinddai4dvngmruffi-213396592667.asia-southeast1.run.app';
-
-  const apkDetails = {
-    appName: 'HC Home Cooking',
-    fileName: 'HCHomeCooking_v2.4.2_release.apk',
-    version: '2.4.2 (Build 108)',
-    fileSize: '18.4 MB',
-    packageName: 'com.digitalcommunique.hchomecooking',
-    minAndroid: 'Android 8.0 (Oreo) or higher',
-    updatedAt: 'August 2026',
-    publisher: 'Digital Communique Private Limited'
-  };
+  const currentUrl = typeof window !== 'undefined' ? window.location.href.split('?')[0] : '';
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -60,6 +46,7 @@ export default function ApkDownloadModal({ isOpen, onClose, config }: ApkDownloa
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
+      setIsInstalling(false);
     };
 
     const handleOnline = () => setIsOnline(true);
@@ -70,6 +57,7 @@ export default function ApkDownloadModal({ isOpen, onClose, config }: ApkDownloa
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Detect if running in installed Standalone App mode
     if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
       setIsInstalled(true);
     }
@@ -82,49 +70,30 @@ export default function ApkDownloadModal({ isOpen, onClose, config }: ApkDownloa
     };
   }, []);
 
-  const handleInstallPwa = async () => {
+  const handleInstallApp = async () => {
     if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setIsInstalled(true);
-      }
-      setDeferredPrompt(null);
-    } else {
-      alert('To install directly: Open in Chrome/Samsung Internet on your Android phone, tap the 3 dots (⋮) and select "Install app" or "Add to Home screen"!');
-    }
-  };
-
-  const handleDownloadApk = () => {
-    setDownloading(true);
-    setTimeout(() => {
+      setIsInstalling(true);
       try {
-        const apkPayload = JSON.stringify({
-          app: apkDetails.appName,
-          package: apkDetails.packageName,
-          version: apkDetails.version,
-          build: 'Release-Production',
-          publisher: apkDetails.publisher,
-          timestamp: new Date().toISOString(),
-          note: 'HC Home Cooking Android Package Installer'
-        }, null, 2);
-
-        const blob = new Blob([apkPayload], { type: 'application/vnd.android.package-archive' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = apkDetails.fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        await deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          setIsInstalled(true);
+        }
+        setDeferredPrompt(null);
       } catch (err) {
-        console.error("APK Download error:", err);
+        console.warn("Install prompt error:", err);
+      } finally {
+        setIsInstalling(false);
       }
-      
-      setDownloading(false);
-      setDownloadCompleted(true);
-    }, 1000);
+    } else {
+      // Guide user for manual Chrome / Android installation
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      if (isAndroid) {
+        alert('To install on your phone:\n1. Tap the 3 dots (⋮) in the top-right corner of Chrome.\n2. Select "Install app" or "Add to Home screen".\n\nYour app will install directly with the official HC Home Cooking icon!');
+      } else {
+        alert('Open this app in Chrome on your Android mobile device to install it directly with 1 tap!');
+      }
+    }
   };
 
   const handleManualSync = async () => {
@@ -144,9 +113,11 @@ export default function ApkDownloadModal({ isOpen, onClose, config }: ApkDownloa
   };
 
   const copyUrl = () => {
-    navigator.clipboard.writeText(currentUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (currentUrl) {
+      navigator.clipboard.writeText(currentUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   if (!isOpen) return null;
@@ -158,303 +129,164 @@ export default function ApkDownloadModal({ isOpen, onClose, config }: ApkDownloa
         animate={{ opacity: 1 }} 
         exit={{ opacity: 0 }} 
         onClick={onClose}
-        className="fixed inset-0 bg-black/75 backdrop-blur-md" 
+        className="fixed inset-0 bg-black/80 backdrop-blur-md" 
       />
 
       <motion.div 
-        initial={{ opacity: 0, scale: 0.94, y: 20 }}
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.94, y: 20 }}
-        className="relative bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden flex flex-col my-8 z-10"
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden flex flex-col my-6 z-10"
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-gray-900 via-neutral-900 to-red-950 p-6 md:p-8 text-white flex items-center justify-between relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-red-950 p-6 md:p-7 text-white flex items-center justify-between relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/15 rounded-full blur-3xl pointer-events-none" />
           
-          <div className="flex items-center gap-4 relative z-10">
-            <AppLogo config={config} size="lg" variant="dark" />
+          <div className="flex items-center gap-3.5 relative z-10">
+            <AppLogo config={config} size="md" variant="dark" />
           </div>
 
           <button 
             onClick={onClose}
-            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors relative z-10"
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors relative z-10 cursor-pointer"
+            aria-label="Close modal"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Live Network & Database Sync Bar */}
-        <div className="bg-gray-50 border-b border-gray-100 px-6 py-2.5 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-              <span className="font-bold text-gray-700">{isOnline ? 'Online' : 'Offline'}</span>
-            </div>
-            <div className="flex items-center gap-1 text-gray-500 font-medium">
-              <Database size={13} className="text-red-600" />
-              <span>Real-Time Cloud & Local Sync</span>
-            </div>
+        {/* Status Bar */}
+        <div className="bg-zinc-50 border-b border-gray-100 px-6 py-2.5 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2.5">
+            <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+            <span className="font-bold text-zinc-700">{isOnline ? 'Online System Active' : 'Offline'}</span>
           </div>
 
           <button
             onClick={handleManualSync}
             disabled={isSyncing}
-            className="flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
-            {isSyncing ? 'Syncing...' : 'Sync Database'}
+            {isSyncing ? 'Syncing...' : 'Sync Data'}
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-gray-100 px-6 bg-white">
-          <button 
-            onClick={() => setActiveTab('pwa')}
-            className={`py-3 px-4 text-xs font-black uppercase tracking-wider border-b-2 transition-colors flex items-center gap-1.5 ${
-              activeTab === 'pwa' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-400 hover:text-gray-600'
-            }`}
-          >
-            <Smartphone size={14} /> 1-Tap Mobile Install & QR
-          </button>
-          <button 
-            onClick={() => setActiveTab('apk')}
-            className={`py-3 px-4 text-xs font-black uppercase tracking-wider border-b-2 transition-colors flex items-center gap-1.5 ${
-              activeTab === 'apk' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-400 hover:text-gray-600'
-            }`}
-          >
-            <Download size={14} /> Direct APK Download
-          </button>
-          <button 
-            onClick={() => setActiveTab('dbsync')}
-            className={`py-3 px-4 text-xs font-black uppercase tracking-wider border-b-2 transition-colors flex items-center gap-1.5 ${
-              activeTab === 'dbsync' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-400 hover:text-gray-600'
-            }`}
-          >
-            <Database size={14} /> Database Health
-          </button>
-        </div>
-
-        <div className="p-6 md:p-8 space-y-6 max-h-[70vh] overflow-y-auto">
-          {/* TAB 1: 1-Tap PWA / Mobile QR Install */}
-          {activeTab === 'pwa' && (
-            <div className="space-y-6">
-              <div className="p-5 bg-gradient-to-br from-red-50 to-white rounded-3xl border border-red-100 flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="space-y-1 text-center md:text-left">
+        {/* Content Body */}
+        <div className="p-6 md:p-8 space-y-6 max-h-[72vh] overflow-y-auto">
+          {/* Main Install Card */}
+          <div className="p-6 bg-gradient-to-br from-red-50 via-white to-red-50/40 rounded-3xl border border-red-100/90 shadow-sm space-y-5">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-black border border-zinc-800 flex items-center justify-center p-1 shadow-lg flex-shrink-0">
+                <img src="/icon-192.svg" alt="HC Home Cooking Icon" className="w-full h-full object-contain rounded-xl" />
+              </div>
+              <div className="space-y-1 min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="px-2.5 py-0.5 bg-red-600 text-white text-[10px] font-black uppercase tracking-wider rounded-full">
-                    {isInstalled ? 'Installed' : 'Instant 1-Tap Setup'}
+                    {isInstalled ? 'Installed' : 'Official Android App'}
                   </span>
-                  <h4 className="text-base font-black text-gray-900">
-                    {isInstalled ? 'App is active in Standalone Mobile Mode!' : 'Install Directly to Android Home Screen'}
-                  </h4>
-                  <p className="text-xs text-gray-600 font-medium max-w-md">
-                    Installs instantly with full offline support, push notifications, and high-res icon.
-                  </p>
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">v2.4.2 Release</span>
                 </div>
-
-                {isInstalled ? (
-                  <div className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-2xl font-black text-xs uppercase tracking-wider">
-                    <CheckCircle2 size={16} /> App Installed
-                  </div>
-                ) : (
-                  <button 
-                    onClick={handleInstallPwa}
-                    className="w-full md:w-auto px-6 py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-red-200 transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <Download size={16} /> Install App on Phone
-                  </button>
-                )}
-              </div>
-
-              {/* Mobile Home Screen Launcher Icon Preview */}
-              <div className="flex items-center gap-4 p-4 bg-zinc-950 text-white rounded-3xl border border-zinc-800 shadow-inner">
-                <div className="w-16 h-16 rounded-2xl bg-black border border-zinc-800 flex items-center justify-center p-1 shadow-lg flex-shrink-0">
-                  <img src="/icon-192.svg" alt="HC Home Cooking App Icon" className="w-full h-full object-contain rounded-xl" />
-                </div>
-                <div className="space-y-0.5 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-red-500">Android Launcher Icon</span>
-                    <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded text-white font-mono">192x192 & 512x512</span>
-                  </div>
-                  <h5 className="font-black text-sm text-white truncate">HC Home Cooking</h5>
-                  <p className="text-xs text-zinc-400 font-medium">
-                    This official icon will appear on your phone home screen, app drawer & splash screen.
-                  </p>
-                </div>
-              </div>
-
-              {/* QR Code & Mobile URL */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center bg-gray-50 p-5 rounded-3xl border border-gray-100">
-                <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
-                  <QRCodeSVG 
-                    value={currentUrl} 
-                    size={130}
-                    level="H"
-                    includeMargin={false}
-                  />
-                  <p className="text-[10px] font-bold text-gray-500 mt-2 flex items-center gap-1">
-                    <QrCode size={12} /> Scan with Android Camera
-                  </p>
-                </div>
-
-                <div className="space-y-2.5">
-                  <h5 className="font-black text-xs uppercase tracking-wider text-gray-900">
-                    Install Steps for Android:
-                  </h5>
-                  <ol className="text-xs text-gray-600 space-y-1.5 list-decimal list-inside font-medium">
-                    <li>Open this URL in <strong>Google Chrome</strong> on your phone.</li>
-                    <li>Tap the <strong>3 dots menu (⋮)</strong> in Chrome.</li>
-                    <li>Tap <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</li>
-                  </ol>
-                  
-                  <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-gray-200">
-                    <input 
-                      readOnly 
-                      value={currentUrl} 
-                      className="bg-transparent text-xs font-mono text-gray-700 outline-none flex-1 truncate select-all"
-                    />
-                    <button 
-                      onClick={copyUrl}
-                      className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-black uppercase rounded-lg transition-colors flex items-center gap-1"
-                    >
-                      {copied ? <Check size={12} /> : <Copy size={12} />}
-                      {copied ? 'Copied' : 'Copy'}
-                    </button>
-                  </div>
-                </div>
+                <h4 className="text-lg font-black text-gray-900 leading-tight">
+                  HC Home Cooking
+                </h4>
+                <p className="text-xs text-gray-600 font-medium">
+                  Instant chef booking, live order ringing alerts & offline cooking logs.
+                </p>
               </div>
             </div>
-          )}
 
-          {/* TAB 2: APK Download */}
-          {activeTab === 'apk' && (
-            <div className="space-y-5">
-              <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-red-50/60 rounded-3xl border border-red-100">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 bg-red-600 text-white rounded-full text-[10px] font-black uppercase tracking-wider">
-                      Android Package
-                    </span>
-                    <span className="text-xs font-bold text-gray-500">v{apkDetails.version}</span>
-                  </div>
-                  <h3 className="text-base font-black text-gray-900">
-                    {apkDetails.appName} Standalone APK
-                  </h3>
-                  <p className="text-xs text-gray-600 font-medium">
-                    Pre-configured with offline database cache, service worker & sound alerts.
-                  </p>
-                </div>
-
-                <div className="text-right">
-                  <span className="text-xs font-mono font-bold text-gray-700 bg-white px-3 py-1.5 rounded-xl border border-red-200 inline-block shadow-sm">
-                    📦 {apkDetails.fileSize}
-                  </span>
-                </div>
+            {/* Direct 1-Tap Action Button */}
+            {isInstalled ? (
+              <div className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-200">
+                <CheckCircle2 size={18} />
+                <span>App Installed & Ready on Phone</span>
               </div>
-
-              <button
-                onClick={handleDownloadApk}
-                disabled={downloading}
-                className="w-full h-14 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-xl shadow-red-200 active:scale-[0.98] transition-all disabled:opacity-75"
+            ) : (
+              <button 
+                type="button"
+                onClick={handleInstallApp}
+                disabled={isInstalling}
+                className="w-full py-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-red-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-75"
               >
-                {downloading ? (
+                {isInstalling ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Preparing APK Package...</span>
-                  </>
-                ) : downloadCompleted ? (
-                  <>
-                    <CheckCircle2 size={18} className="text-amber-300" />
-                    <span>Download Started • Download Again</span>
+                    <span>Installing App...</span>
                   </>
                 ) : (
                   <>
                     <Download size={18} className="animate-bounce" />
-                    <span>Download APK Now ({apkDetails.fileSize})</span>
+                    <span>Install App on Mobile Device</span>
                   </>
                 )}
               </button>
+            )}
+          </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Package</span>
-                  <p className="font-mono text-gray-800 font-bold truncate">{apkDetails.packageName}</p>
-                </div>
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">OS Support</span>
-                  <p className="font-bold text-gray-800">{apkDetails.minAndroid}</p>
-                </div>
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100 col-span-2 sm:col-span-1">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Security</span>
-                  <p className="font-bold text-green-600 flex items-center gap-1">
-                    <ShieldCheck size={14} /> 100% Virus Free
-                  </p>
-                </div>
-              </div>
+          {/* QR Code & Mobile Instructions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center bg-gray-50 p-5 rounded-3xl border border-gray-100">
+            <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-gray-200/80 shadow-sm">
+              <QRCodeSVG 
+                value={currentUrl} 
+                size={130}
+                level="H"
+                includeMargin={false}
+              />
+              <p className="text-[10px] font-bold text-gray-500 mt-2.5 flex items-center gap-1.5">
+                <QrCode size={13} /> Scan with Mobile Camera
+              </p>
             </div>
-          )}
 
-          {/* TAB 3: Database Status & Sync */}
-          {activeTab === 'dbsync' && (
-            <div className="space-y-4">
-              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">
-                <div>
-                  <h5 className="font-black text-xs uppercase tracking-wider text-gray-900">Cloud & Local Storage Health</h5>
-                  <p className="text-xs text-gray-600 font-medium">All menu items, bookings, users, and admin configurations stay synchronized.</p>
-                </div>
-                <button 
-                  onClick={handleManualSync}
-                  disabled={isSyncing}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50"
-                >
-                  <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
-                  {isSyncing ? 'Syncing...' : 'Force Sync'}
-                </button>
-              </div>
+            <div className="space-y-3">
+              <h5 className="font-black text-xs uppercase tracking-wider text-gray-900 flex items-center gap-1.5">
+                <Zap size={14} className="text-amber-500" />
+                <span>How It Works on Phone:</span>
+              </h5>
+              
+              <ul className="text-xs text-gray-600 space-y-2 font-medium">
+                <li className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-red-100 text-red-700 font-bold text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                  <span>Tap <strong>"Install App"</strong> above or scan the QR code on your phone.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-red-100 text-red-700 font-bold text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                  <span>Confirm installation to add <strong>HC Home Cooking</strong> directly to your home screen & app drawer.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-red-100 text-red-700 font-bold text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                  <span>Opens full screen in standalone mode just like any standard native app.</span>
+                </li>
+              </ul>
 
-              {syncSuccess && (
-                <div className="p-3 bg-green-50 border border-green-200 text-green-800 rounded-xl text-xs font-bold flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-green-600 flex-shrink-0" />
-                  Database synchronized successfully!
-                </div>
-              )}
-
-              {dbTestResult && (
-                <div className="p-4 bg-white rounded-2xl border border-gray-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black uppercase text-gray-500">Connection Status</span>
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
-                      dbTestResult.connected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {dbTestResult.connected ? 'Connected to Cloud DB' : 'Local Storage Cache Mode'}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
-                    <div className="p-2 bg-gray-50 rounded-xl">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase">Users</p>
-                      <p className="font-black text-sm text-gray-900">{dbTestResult.tables.users}</p>
-                    </div>
-                    <div className="p-2 bg-gray-50 rounded-xl">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase">Orders</p>
-                      <p className="font-black text-sm text-gray-900">{dbTestResult.tables.orders}</p>
-                    </div>
-                    <div className="p-2 bg-gray-50 rounded-xl">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase">Menu Items</p>
-                      <p className="font-black text-sm text-gray-900">{dbTestResult.tables.menu_items}</p>
-                    </div>
-                    <div className="p-2 bg-gray-50 rounded-xl">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase">Withdrawals</p>
-                      <p className="font-black text-sm text-gray-900">{dbTestResult.tables.withdrawals}</p>
-                    </div>
-                    <div className="p-2 bg-gray-50 rounded-xl">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase">Config</p>
-                      <p className="font-black text-sm text-gray-900">{dbTestResult.tables.app_config}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <button 
+                type="button"
+                onClick={copyUrl}
+                className="w-full py-2 bg-white hover:bg-gray-100 text-gray-700 text-[11px] font-bold rounded-xl border border-gray-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                {copied ? <Check size={13} className="text-green-600" /> : <Copy size={13} />}
+                <span>{copied ? 'Link Copied to Clipboard!' : 'Copy Mobile Link'}</span>
+              </button>
             </div>
-          )}
+          </div>
+
+          {/* App Key Highlights */}
+          <div className="grid grid-cols-3 gap-3 text-center text-xs">
+            <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Launch Mode</span>
+              <p className="font-bold text-gray-800 mt-0.5">Standalone Full Screen</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Audio Alerts</span>
+              <p className="font-bold text-gray-800 mt-0.5">Loud Chef Ringtones</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Security</span>
+              <p className="font-bold text-emerald-600 flex items-center justify-center gap-1 mt-0.5">
+                <ShieldCheck size={13} /> Verified
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}

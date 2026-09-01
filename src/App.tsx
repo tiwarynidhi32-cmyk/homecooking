@@ -216,7 +216,7 @@ export default function App() {
             <div className="p-1.5 rounded-lg bg-red-100">
               <Smartphone size={18} className="text-red-600" />
             </div>
-            {(isSidebarOpen || isMobile) && <span className="uppercase tracking-widest text-[11px] font-black">Mobile APK / Sync</span>}
+            {(isSidebarOpen || isMobile) && <span className="uppercase tracking-widest text-[11px] font-black">Mobile App / Sync</span>}
           </button>
         </nav>
 
@@ -257,7 +257,7 @@ export default function App() {
               title="Install Mobile App & Database Sync"
             >
               <Smartphone size={14} />
-              <span>Mobile APK / Sync</span>
+              <span>Mobile App</span>
             </button>
 
             <div className="relative">

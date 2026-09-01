@@ -153,7 +153,7 @@ export default function Login({ onLogin, config }: LoginProps) {
                 onClick={() => setShowApkModal(true)}
                 className="w-full h-10 bg-emerald-500 hover:bg-emerald-400 text-gray-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
               >
-                <Download size={14} className="text-gray-950" /> Download APK
+                <Smartphone size={14} className="text-gray-950" /> Install Mobile App
               </button>
             </div>
           </div>
@@ -179,7 +179,7 @@ export default function Login({ onLogin, config }: LoginProps) {
                 onClick={() => setShowApkModal(true)}
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider rounded-xl flex items-center gap-1 shadow-sm active:scale-95 transition-all flex-shrink-0"
               >
-                <Download size={12} /> Get APK
+                <Smartphone size={12} /> Install App
               </button>
             </div>
 
